@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Virtual environment
+venv/
+.env/
+.venv/
+
+# IDE / Editor
+.idea/
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs / Cache
+*.log
+*.pot
+*.pyc
+*.mypy_cache/
+*.pytest_cache/
+.cache/
+
+# Environment variables
+.env.local
+.env.development
+.env.production
+
+# Model weights or large files (if any)
+*.pt
+*.pth
+*.h5
+*.onnx
