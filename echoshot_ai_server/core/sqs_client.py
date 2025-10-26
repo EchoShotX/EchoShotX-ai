@@ -1,6 +1,6 @@
 import boto3
 import json
-
+import logging
 from botocore.exceptions import ClientError
 
 from ..config.settings import settings
@@ -8,6 +8,8 @@ from typing import Optional, List
 from dataclasses import asdict
 
 from ..domain.job import Job, TaskType
+
+logger = logging.getLogger(__name__)
 
 class SQSClient:
     """SQS 클라이언트 래퍼"""
