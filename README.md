@@ -6,7 +6,7 @@ EchoShotX AI Server는 Spring 백엔드로부터 영상 처리 요청을 받아 
 
 ## 주요 기능
 
-- FFmpeg 모델을 활용한 AI 기반 영상 업스케일링
+- Real-ESRGAN 모델을 활용한 AI 기반 영상 업스케일링
 - 동시 작업 처리를 위한 멀티프로세싱 워커 풀
 - 지수 백오프 기반 자동 재시도 메커니즘
 - AWS SQS 기반 작업 큐 관리
