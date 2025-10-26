@@ -9,6 +9,11 @@ from basicsr.archs.rrdbnet_arch import RRDBNet
 
 from echoshot_ai_server.tasks.base import BaseTask
 
+"""
+todo 
+1. 오디오 없는 경우 처리 필요
+2. 대용량 비디오 처리 시 메모리 문제 발생 가능
+"""
 
 class UpscaleTask(BaseTask):
     """비디오 업스케일링 작업"""
