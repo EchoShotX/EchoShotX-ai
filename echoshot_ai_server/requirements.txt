@@ -25,3 +25,4 @@ boto3-stubs[s3,sqs]==1.35.30.0
 
 # Config
 pydantic-settings
+requests
