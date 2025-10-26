@@ -1,13 +1,14 @@
 from typing import Type
-
+from ..domain.job import *
+from base import *
 
 class TaskFactory:
     """Task Factory Pattern"""
 
     _task_map: Dict[TaskType, Type[BaseTask]] = {
-        TaskType.UPSCALE: UpscaleTask,
-        TaskType.SUBTITLE: SubtitleTask,
-        TaskType.AUDIO_EXTRACT: AudioExtractTask,
+        # TaskType.UPSCALE: UpscaleTask,
+        # TaskType.SUBTITLE: SubtitleTask,
+        # TaskType.AUDIO_EXTRACT: AudioExtractTask,
     }
 
     @classmethod

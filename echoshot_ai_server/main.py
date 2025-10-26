@@ -1,16 +1,20 @@
-# This is a sample Python script.
+import sys
+from pathlib import Path
+from config.settings import get_settings
+from config.logging_config import setup_logging
+from core.sqs_client import SQSClient
+from core.s3_client import S3Client
+from core.api_client import SpringAPIClient
+from services.job_processor import JobProcessor
+from services.worker_pool import WorkerPool
 
-# Press Shift+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 
+def main():
+    """애플리케이션 진입점"""
+    # 설정 로드
+    settings = get_settings()
 
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
-
-
-# Press the green button in the gutter to run the script.
-if __name__ == '__main__':
-    print_hi('PyCharm')
-
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+    # 로깅 설정
+    setup_logging(settings.LOG_LEVEL)
+    logger.info("Starting Video AI Server")
+    logger.info(f"Configuration: {settings.dict()}")
