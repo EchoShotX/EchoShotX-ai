@@ -22,22 +22,31 @@ class JobStatus(str, Enum):
 class Job:
     """작업 도메인 모델"""
     job_id: str
+    member_id: str
     task_type: TaskType
     source_s3_key: str
     parameters: Dict[str, Any]
     callback_url: str
     receipt_handle: str
     retry_count: int = 0
+    priority: int = 0
+    submitted_at: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """딕셔너리로 변환"""
         return {
+             "version": self.version,
             "job_id": self.job_id,
+            "member_id": self.member_id,
             "task_type": self.task_type.value,
             "source_s3_key": self.source_s3_key,
             "parameters": self.parameters,
             "callback_url": self.callback_url,
-            "retry_count": self.retry_count
+            "priority": self.priority,
+            "retry_count": self.retry_count,
+            "submitted_at": self.submitted_at.isoformat(),
+            "metadata": self.metadata or {},
         }
 
 
