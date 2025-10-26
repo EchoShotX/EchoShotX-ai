@@ -10,6 +10,6 @@ logger = logging.getLogger(__name__)
 class S3Client:
     """S3 클라이언트 래퍼"""
 
-    def __init__(self, region: str):
+    def __init__(self):
         self.bucket_name = settings.S3_BUCKET_NAME
-        self.s3_client = boto3.client('s3', region_name=region)
+        self.s3_client = boto3.client("s3", region_name=settings.AWS_REGION)
