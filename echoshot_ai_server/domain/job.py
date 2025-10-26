@@ -36,7 +36,7 @@ class Job:
     def to_dict(self) -> Dict[str, Any]:
         """딕셔너리로 변환"""
         return {
-             "version": self.version,
+            "version": self.version,
             "job_id": self.job_id,
             "member_id": self.member_id,
             "task_type": self.task_type.value,
