@@ -1,4 +1,4 @@
-# Core
+﻿# Core
 boto3==1.35.30
 botocore==1.35.30
 requests==2.32.3
@@ -24,10 +24,13 @@ typing-extensions==4.12.2
 boto3-stubs[s3,sqs]==1.35.30.0
 
 # Config
-pydantic-settings
-requests
-cv2
+pydantic-settings==2.2.1  # 정확한 버전 지정
+# requests 이미 Core에 있음 → 제거
+# cv2는 opencv-python으로 설치됨 → 제거
 
-# REAL-ESRGAN
-realesrgan
-torch torchvision torchaudio
+# REAL-ESRGAN & Deep Learning
+torch==2.2.1
+torchvision==0.17.1
+torchaudio==2.2.1
+realesrgan==0.3.0        # pip에서 설치 가능한 최신 버전
+basicsr==1.4.2           # RRDBNet 포함
