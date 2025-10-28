@@ -69,7 +69,10 @@ def create_test_job(job_id: str, input_file: str, scale: int, device: str) -> Jo
             "device": device
         },
         status=JobStatus.QUEUED,
-        created_at=datetime.now()
+        # created_at=datetime.now(),
+        callback_url="http://localhost/callback",
+        receipt_handle="test_receipt_handle"
+
     )
 
 

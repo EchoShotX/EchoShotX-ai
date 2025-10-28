@@ -200,6 +200,7 @@ class UpscaleTask(BaseTask):
                 check=True,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.PIPE,
+                encoding="utf-8",
                 text=True
             )
             

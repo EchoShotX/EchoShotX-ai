@@ -16,22 +16,25 @@ class JobStatus(str, Enum):
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
+    QUEUED = "queued"
 
 
 @dataclass
 class Job:
     """작업 도메인 모델"""
     job_id: str
-    member_id: str
+    user_id: str
     task_type: TaskType
     source_s3_key: str
     parameters: Dict[str, Any]
     callback_url: str
     receipt_handle: str
+    status: JobStatus.QUEUED
     retry_count: int = 0
     priority: int = 0
     submitted_at: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
+
 
     def to_dict(self) -> Dict[str, Any]:
         """딕셔너리로 변환"""
