@@ -17,8 +17,11 @@ from pathlib import Path
 from datetime import datetime
 import logging
 
-from tasks.upscale_task import UpscaleTask
-from domain.job import Job, JobStatus, TaskType
+from echoshot_ai_server.tasks.upscale_task import UpscaleTask
+from echoshot_ai_server.domain.job import Job, JobStatus, TaskType
+
+# from tasks.upscale_task import UpscaleTask
+# from domain.job import Job, JobStatus, TaskType
 
 # 프로젝트 루트를 Python 경로에 추가
 sys.path.insert(0, str(Path(__file__).parent))

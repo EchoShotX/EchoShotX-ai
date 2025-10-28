@@ -36,3 +36,6 @@ Thumbs.db
 *.pth
 *.h5
 *.onnx
+
+# Test Video
+/test_video.mp4
