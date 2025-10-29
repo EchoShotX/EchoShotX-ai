@@ -44,7 +44,7 @@ class UpscaleTask(BaseTask):
             self.job.parameters.get("scale_factor", 2)
         )
         device = self.job.parameters.get("device", "cpu").lower()  # 기본값: CPU
-        
+
         logger.info(f"업스케일 작업 시작 - Scale: {scale_factor}x, Device: {device.upper()}")
 
         output_file = self.temp_dir / f"{self.job.job_id}_upscaled.mp4"
@@ -69,62 +69,103 @@ class UpscaleTask(BaseTask):
     def _upscale_video(self, input_path: Path, output_path: Path,
                        scale: int, device: str):
         """
-        Real-ESRGAN으로 비디오 업스케일링 후 오디오 포함 병합
-        
-        Args:
-            input_path: 입력 비디오 경로
-            output_path: 출력 비디오 경로
-            scale: 업스케일 배율 (2 or 4)
-            device: 처리 장치 ("gpu" or "cpu")
+        Real-ESRGAN 업스케일링을 단일 ffmpeg 인코딩 파이프라인으로 수행
+        - ffmpeg: 디코드(raw RGB24 stdout)
+        - Python: RealESRGAN 업스케일
+        - ffmpeg: 단일 인코딩(libx264) + 오디오 copy/재인코딩
         """
-        temp_video = self.temp_dir / "temp_upscaled_no_audio.mp4"
-        temp_audio = self.temp_dir / "temp_audio.aac"
-        
-        # ---------------------------
-        # 1. 원본 비디오 정보 추출
-        # ---------------------------
+        import numpy as np
+        import subprocess
+        import cv2
+        import time
+        import torch
+
+        # ---------- 1) 원본 메타 추출 ----------
         cap = cv2.VideoCapture(str(input_path))
-        fps = cap.get(cv2.CAP_PROP_FPS)
+        fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or -1
         cap.release()
 
-        logger.info(f"비디오 정보 - 해상도: {width}x{height}, FPS: {fps}, 프레임: {total_frames}")
+        out_w, out_h = width * scale, height * scale
+        logger.info(f"비디오 정보 - {width}x{height}@{fps:.3f} -> {out_w}x{out_h} (x{scale})")
 
-        # ---------------------------
-        # 2. Real-ESRGAN 모델 초기화
-        # ---------------------------
+        # ---------- 2) 업스케일러 초기화 ----------
         upscaler = self._initialize_upscaler(scale, device)
+        if device.lower() == "gpu" and torch.cuda.is_available():
+            torch.backends.cudnn.benchmark = True
 
-        # ---------------------------
-        # 3. 오디오 트랙 추출 (있는 경우만)
-        # ---------------------------
+        # ---------- 3) 오디오 추출(가능하면 copy) ----------
+        temp_audio = self.temp_dir / "temp_audio.aac"
         has_audio = self._extract_audio(input_path, temp_audio)
 
-        # ---------------------------
-        # 4. 프레임별 업스케일 처리
-        # ---------------------------
-        self._process_frames(
-            input_path=input_path,
-            temp_video=temp_video,
-            upscaler=upscaler,
-            scale=scale,
-            width=width,
-            height=height,
-            fps=fps,
-            total_frames=total_frames
-        )
+        # ---------- 4) ffmpeg 파이프 준비 (디코더/인코더) ----------
+        # 디코더: 원본 → raw RGB24
+        dec = subprocess.Popen([
+            "ffmpeg", "-y",
+            "-i", str(input_path),
+            "-f", "rawvideo", "-pix_fmt", "rgb24", "-"
+        ], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=10 ** 8)
 
-        # ---------------------------
-        # 5. 비디오 인코딩 및 오디오 병합
-        # ---------------------------
-        self._merge_video_audio(temp_video, temp_audio, output_path, has_audio)
+        # 인코더: raw RGB24 → h264 (단일 인코딩) + (옵션)오디오
+        enc_cmd = [
+            "ffmpeg", "-y",
+            "-f", "rawvideo", "-pix_fmt", "rgb24",
+            "-s", f"{out_w}x{out_h}",
+            "-r", f"{max(1, int(round(fps)))}",
+            "-i", "-",
+            "-c:v", "libx264", "-preset", "veryfast", "-crf", "20"
+        ]
+        if has_audio:
+            # 우선 copy 시도(호환 안 되면 _extract_audio에서 재인코딩하도록 처리)
+            enc_cmd += ["-i", str(temp_audio), "-c:a", "copy", "-shortest"]
+        enc_cmd += [str(output_path)]
 
-        # ---------------------------
-        # 6. 임시 파일 삭제
-        # ---------------------------
-        temp_video.unlink(missing_ok=True)
+        enc = subprocess.Popen(enc_cmd, stdin=subprocess.PIPE,
+                               stderr=subprocess.DEVNULL, bufsize=10 ** 8)
+
+        # ---------- 5) 프레임 스트리밍 처리 ----------
+        frame_bytes = width * height * 3  # rgb24
+        processed = 0
+        t0 = time.time()
+
+        try:
+            while True:
+                buf = dec.stdout.read(frame_bytes)
+                if not buf:
+                    break
+
+                # RGB24 → numpy 프레임
+                frame = np.frombuffer(buf, np.uint8).reshape(height, width, 3)
+
+                # 업스케일 (RealESRGAN은 RGB 입력/출력)
+                up_rgb, _ = upscaler.enhance(frame, outscale=scale)
+
+                # 인코더에 raw RGB24로 밀어넣기
+                enc.stdin.write(up_rgb.tobytes())
+
+                processed += 1
+                if total_frames > 0 and processed % max(1, total_frames // 20) == 0:
+                    logger.info(f"업스케일 진행률: {processed}/{total_frames} "
+                                f"({processed / total_frames * 100:.1f}%)")
+        finally:
+            # 파이프 정리
+            try:
+                dec.stdout.close()
+            except Exception:
+                pass
+            try:
+                enc.stdin.close()
+            except Exception:
+                pass
+            dec.wait()
+            enc.wait()
+
+        elapsed = time.time() - t0
+        logger.info(f"스트리밍 업스케일 완료: frames={processed}, elapsed={elapsed:.1f}s")
+
+        # 임시 오디오 정리
         temp_audio.unlink(missing_ok=True)
 
     def _initialize_upscaler(self, scale: int, device: str) -> RealESRGANer:
@@ -140,10 +181,10 @@ class UpscaleTask(BaseTask):
         """
         # 디바이스 설정 가져오기
         config = self.DEVICE_CONFIGS.get(device, self.DEVICE_CONFIGS["cpu"])
-        
+
         # GPU 사용 가능 여부 확인
         use_gpu = device == "gpu" and torch.cuda.is_available()
-        
+
         if device == "gpu" and not torch.cuda.is_available():
             logger.warning("GPU가 요청되었지만 사용 불가능합니다. CPU로 대체합니다.")
             use_gpu = False
@@ -199,11 +240,11 @@ class UpscaleTask(BaseTask):
                 extract_audio_cmd,
                 check=True,
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
                 encoding="utf-8",
                 text=True
             )
-            
+
             # 오디오 파일이 실제로 생성되었는지 확인
             if temp_audio.exists() and temp_audio.stat().st_size > 0:
                 logger.info("오디오 트랙 추출 완료")
@@ -211,14 +252,15 @@ class UpscaleTask(BaseTask):
             else:
                 logger.info("오디오 트랙이 없습니다")
                 return False
-                
+
         except subprocess.CalledProcessError as e:
             logger.warning(f"오디오 추출 실패 (비디오에 오디오가 없을 수 있음): {e}")
             return False
 
+    # todo 삭제 예정
     def _process_frames(self, input_path: Path, temp_video: Path,
-                       upscaler: RealESRGANer, scale: int,
-                       width: int, height: int, fps: float, total_frames: int):
+                        upscaler: RealESRGANer, scale: int,
+                        width: int, height: int, fps: float, total_frames: int):
         """
         프레임별 업스케일 처리
         
@@ -235,7 +277,7 @@ class UpscaleTask(BaseTask):
         cap = cv2.VideoCapture(str(input_path))
         out_width = width * scale
         out_height = height * scale
-        
+
         # H.264 코덱 사용 (더 나은 압축률)
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         out = cv2.VideoWriter(str(temp_video), fourcc, fps, (out_width, out_height))
@@ -256,7 +298,7 @@ class UpscaleTask(BaseTask):
                 out.write(upscaled_bgr)
 
                 frame_count += 1
-                
+
                 # 진행률 로깅
                 if frame_count % log_interval == 0:
                     progress = (frame_count / total_frames) * 100
@@ -267,8 +309,9 @@ class UpscaleTask(BaseTask):
             out.release()
             logger.info(f"프레임 업스케일 완료: {frame_count}/{total_frames} 프레임 처리")
 
+    # todo 삭제 예정
     def _merge_video_audio(self, temp_video: Path, temp_audio: Path,
-                          output_path: Path, has_audio: bool):
+                           output_path: Path, has_audio: bool):
         """
         업스케일된 비디오와 오디오 병합
         
@@ -312,7 +355,6 @@ class UpscaleTask(BaseTask):
             stderr=subprocess.DEVNULL
         )
         logger.info("최종 비디오 생성 완료")
-
 
     def _generate_output_key(self) -> str:
         """출력 S3 키 생성"""
