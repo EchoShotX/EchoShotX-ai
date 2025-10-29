@@ -5,6 +5,7 @@ from base import *
 class TaskFactory:
     """Task Factory Pattern"""
 
+    """ 추가 가능 """
     _task_map: Dict[TaskType, Type[BaseTask]] = {
         # TaskType.UPSCALE: UpscaleTask,
         # TaskType.SUBTITLE: SubtitleTask,
