@@ -73,7 +73,7 @@ class UpscaleTask(BaseTask):
             input_path=self.input_path,
             output_path=output_file,
             scale=scale_factor,
-
+            device='gpu'
         )
 
         return output_file
@@ -88,10 +88,10 @@ class UpscaleTask(BaseTask):
     def _upscale_video(self, input_path: Path, output_path: Path,
                        scale: int, device: str):
         """
-        Real-ESRGAN 업스케일링을 단일 ffmpeg 인코딩 파이프라인으로 수행
+        단일 ffmpeg 인코딩 파이프라인 + 첫 프레임 실제 크기(uw×uh)로 인코더 시작
         - ffmpeg: 디코드(raw RGB24 stdout)
         - Python: RealESRGAN 업스케일
-        - ffmpeg: 단일 인코딩(libx264) + 오디오 copy/재인코딩
+        - ffmpeg: 단일 인코딩(libx264) + 오디오 copy(가능 시)
         """
         import numpy as np
         import subprocess
@@ -99,75 +99,117 @@ class UpscaleTask(BaseTask):
         import time
         import torch
 
-        # ---------- 1) 원본 메타 추출 ----------
+        # ---------- 1) 원본 메타 ----------
         cap = cv2.VideoCapture(str(input_path))
         fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
-        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        in_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        in_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or -1
         cap.release()
+        logger.info(f"비디오 정보 - {in_w}x{in_h}@{fps:.3f} (x{scale})")
 
-        out_w, out_h = width * scale, height * scale
-        logger.info(f"비디오 정보 - {width}x{height}@{fps:.3f} -> {out_w}x{out_h} (x{scale})")
-
-        # ---------- 2) 업스케일러 초기화 ----------
+        # ---------- 2) 업스케일러 ----------
         upscaler = self._initialize_upscaler(scale, device)
-        if device.lower() == "gpu" and torch.cuda.is_available():
+        if torch.cuda.is_available():
             torch.backends.cudnn.benchmark = True
 
-        # ---------- 3) 오디오 추출(가능하면 copy) ----------
+        # ---------- 3) 오디오 추출 ----------
         temp_audio = self.temp_dir / "temp_audio.aac"
         has_audio = self._extract_audio(input_path, temp_audio)
-
-        # ---------- 4) ffmpeg 파이프 준비 (디코더/인코더) ----------
-        # 디코더: 원본 → raw RGB24
+        # has_audio = False
+        # ---------- 4) ffmpeg 디코더 준비 (raw RGB24) ----------
         dec = subprocess.Popen([
             "ffmpeg", "-y",
             "-i", str(input_path),
             "-f", "rawvideo", "-pix_fmt", "rgb24", "-"
         ], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=10 ** 8)
 
-        # 인코더: raw RGB24 → h264 (단일 인코딩) + (옵션)오디오
+        # 입력 프레임 바이트
+        frame_bytes = in_w * in_h * 3
+
+        # ---------- 5) 첫 프레임 읽고 업스케일 → 실제 크기(uw×uh) 획득 ----------
+        buf0 = dec.stdout.read(frame_bytes)
+        if not buf0:
+            # 디코더가 프레임을 못 뽑음
+            try:
+                dec.stdout.close()
+            except Exception:
+                pass
+            dec.wait()
+            raise RuntimeError("첫 프레임을 읽지 못했습니다. 입력 파일을 확인하세요.")
+
+        frame0 = np.frombuffer(buf0, np.uint8).reshape(in_h, in_w, 3)
+        up0, _ = upscaler.enhance(frame0, outscale=scale)
+
+        # dtype/연속성 보장
+        if up0.dtype != np.uint8:
+            up0 = up0.astype(np.uint8, copy=False)
+        if not up0.flags["C_CONTIGUOUS"]:
+            up0 = np.ascontiguousarray(up0)
+
+        uh, uw = up0.shape[:2]  # 실제 업스케일 결과 크기
+        fps_safe = int(round(fps)) if fps and fps > 0 else 30
+        logger.info(f"인코더 크기 결정: {uw}x{uh} @ {fps_safe}fps")
+
+        # ---------- 6) ffmpeg 인코더 준비 (실제 크기) ----------
         enc_cmd = [
             "ffmpeg", "-y",
+            "-loglevel", "error", "-hide_banner",
             "-f", "rawvideo", "-pix_fmt", "rgb24",
-            "-s", f"{out_w}x{out_h}",
-            "-r", f"{max(1, int(round(fps)))}",
+            "-s", f"{uw}x{uh}",
+            "-r", f"{max(1, fps_safe)}",
             "-i", "-",
-            "-c:v", "libx264", "-preset", "veryfast", "-crf", "20"
+            "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+            "-pix_fmt", "yuv420p"  # 호환성 향상
         ]
         if has_audio:
-            # 우선 copy 시도(호환 안 되면 _extract_audio에서 재인코딩하도록 처리)
             enc_cmd += ["-i", str(temp_audio), "-c:a", "copy", "-shortest"]
         enc_cmd += [str(output_path)]
 
         enc = subprocess.Popen(enc_cmd, stdin=subprocess.PIPE,
-                               stderr=subprocess.DEVNULL, bufsize=10 ** 8)
+                               stderr=subprocess.PIPE, bufsize=10 ** 8)
 
-        # ---------- 5) 프레임 스트리밍 처리 ----------
-        frame_bytes = width * height * 3  # rgb24
+        # 대형 프레임 대비: stdin 청크 write
+        def _write_frame_rgb24(arr: np.ndarray):
+            mv = memoryview(arr).cast('B')
+            CHUNK = 1 << 20  # 1MB
+            for i in range(0, mv.nbytes, CHUNK):
+                enc.stdin.write(mv[i:i + CHUNK])
+
         processed = 0
         t0 = time.time()
 
         try:
+            # 6-1) 첫 프레임 즉시 write
+            _write_frame_rgb24(up0)
+            processed += 1
+
+            # 6-2) 나머지 프레임 루프
             while True:
                 buf = dec.stdout.read(frame_bytes)
                 if not buf:
                     break
 
-                # RGB24 → numpy 프레임
-                frame = np.frombuffer(buf, np.uint8).reshape(height, width, 3)
-
-                # 업스케일 (RealESRGAN은 RGB 입력/출력)
+                frame = np.frombuffer(buf, np.uint8).reshape(in_h, in_w, 3)
                 up_rgb, _ = upscaler.enhance(frame, outscale=scale)
 
-                # 인코더에 raw RGB24로 밀어넣기
-                enc.stdin.write(up_rgb.tobytes())
+                # 안전장치: dtype/연속성/크기 일치
+                if up_rgb.dtype != np.uint8:
+                    up_rgb = up_rgb.astype(np.uint8, copy=False)
+                if not up_rgb.flags["C_CONTIGUOUS"]:
+                    up_rgb = np.ascontiguousarray(up_rgb)
+
+                if (up_rgb.shape[1] != uw) or (up_rgb.shape[0] != uh):
+                    # 이론상 동일해야 하나, 모델/타일 경계 영향 대비 강제 맞춤
+                    up_rgb = cv2.resize(up_rgb, (uw, uh), interpolation=cv2.INTER_AREA)
+
+                _write_frame_rgb24(up_rgb)
 
                 processed += 1
                 if total_frames > 0 and processed % max(1, total_frames // 20) == 0:
-                    logger.info(f"업스케일 진행률: {processed}/{total_frames} "
+                    logger.info(f"업스케일 진행: {processed}/{total_frames} "
                                 f"({processed / total_frames * 100:.1f}%)")
+
         finally:
             # 파이프 정리
             try:
@@ -182,7 +224,7 @@ class UpscaleTask(BaseTask):
             enc.wait()
 
         elapsed = time.time() - t0
-        logger.info(f"스트리밍 업스케일 완료: frames={processed}, elapsed={elapsed:.1f}s")
+        logger.info(f"완료: frames={processed}, elapsed={elapsed:.1f}s")
 
         # 임시 오디오 정리
         temp_audio.unlink(missing_ok=True)
@@ -339,6 +381,7 @@ class UpscaleTask(BaseTask):
             output_path: 최종 출력 경로
             has_audio: 오디오 존재 여부
         """
+
         if has_audio:
             # 오디오가 있는 경우: 비디오 + 오디오 병합
             merge_cmd = [
