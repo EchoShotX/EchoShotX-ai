@@ -30,12 +30,27 @@ class UpscaleTask(BaseTask):
             "tile_pad": 10,
             "half_precision": True  # FP16 사용
         },
-        "cpu": {
-            "tile": 128,  # CPU는 작은 타일로 메모리 절약
-            "tile_pad": 5,
-            "half_precision": False  # CPU는 FP32만 지원
-        }
+        # "cpu": {
+        #     "tile": 128,  # CPU는 작은 타일로 메모리 절약
+        #     "tile_pad": 5,
+        #     "half_precision": False  # CPU는 FP32만 지원
+        # } cpu 선택지 삭제
     }
+
+    def _require_gpu(self):
+        import torch, subprocess
+        if not torch.cuda.is_available():
+            # GPU 강제 보장: 바로 실패 (조용한 CPU 폴백 금지)
+            raise RuntimeError(
+                "GPU requested but CUDA is not available. "
+                "Check CUDA driver / PyTorch CUDA build / container runtime."
+            )
+        # 가벼운 정보 로깅
+        dev_name = torch.cuda.get_device_name(0)
+        cc = torch.cuda.get_device_capability(0)
+        logger.info(f"GPU detected: {dev_name}, capability={cc}")
+        # 성능 최적화
+        torch.backends.cudnn.benchmark = True
 
     def _process(self) -> Path:
         """업스케일링 수행"""
@@ -43,9 +58,13 @@ class UpscaleTask(BaseTask):
         scale_factor = self._validate_scale_factor(
             self.job.parameters.get("scale_factor", 2)
         )
-        device = self.job.parameters.get("device", "cpu").lower()  # 기본값: CPU
+        # device = self.job.parameters.get("device", "cpu").lower()  # 기본값: CPU
 
-        logger.info(f"업스케일 작업 시작 - Scale: {scale_factor}x, Device: {device.upper()}")
+        # logger.info(f"업스케일 작업 시작 - Scale: {scale_factor}x, Device: {device.upper()}")
+
+        # CPU 선택지 제거: 항상 GPU 강제
+        self._require_gpu()
+        logger.info(f"Start upscale | Scale: x{scale_factor}, Device: GPU only")
 
         output_file = self.temp_dir / f"{self.job.job_id}_upscaled.mp4"
 
@@ -180,15 +199,17 @@ class UpscaleTask(BaseTask):
             초기화된 RealESRGANer 인스턴스
         """
         # 디바이스 설정 가져오기
-        config = self.DEVICE_CONFIGS.get(device, self.DEVICE_CONFIGS["cpu"])
+        self._require_gpu()
+        # config = self.DEVICE_CONFIGS.get(device, self.DEVICE_CONFIGS["cpu"])
+        config = self.DEVICE_CONFIGS.get(device, self.DEVICE_CONFIGS["gpu"])
 
         # GPU 사용 가능 여부 확인
-        use_gpu = device == "gpu" and torch.cuda.is_available()
-
-        if device == "gpu" and not torch.cuda.is_available():
-            logger.warning("GPU가 요청되었지만 사용 불가능합니다. CPU로 대체합니다.")
-            use_gpu = False
-            config = self.DEVICE_CONFIGS["cpu"]
+        # use_gpu = device == "gpu" and torch.cuda.is_available()
+        #
+        # if device == "gpu" and not torch.cuda.is_available():
+        #     logger.warning("GPU가 요청되었지만 사용 불가능합니다. CPU로 대체합니다.")
+        #     use_gpu = False
+        #     config = self.DEVICE_CONFIGS["cpu"]
 
         # RRDBNet 모델 생성
         model = RRDBNet(
@@ -208,15 +229,12 @@ class UpscaleTask(BaseTask):
             tile=config["tile"],  # 타일 크기 (메모리 최적화)
             tile_pad=config["tile_pad"],
             pre_pad=0,
-            half=config["half_precision"] and use_gpu,  # FP16은 GPU에서만
-            device='cuda' if use_gpu else 'cpu'
+            half=config["half_precision"],
+            device='cuda'
         )
 
         logger.info(
-            f"업스케일러 초기화 완료 - "
-            f"Device: {'GPU' if use_gpu else 'CPU'}, "
-            f"Tile: {config['tile']}, "
-            f"Half Precision: {config['half_precision'] and use_gpu}"
+            f"Upscaler ready | Device: GPU | Tile: {cfg['tile']} | Half: {cfg['half_precision']}"
         )
 
         return upscaler
