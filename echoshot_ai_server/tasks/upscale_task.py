@@ -73,7 +73,7 @@ class UpscaleTask(BaseTask):
             input_path=self.input_path,
             output_path=output_file,
             scale=scale_factor,
-            device=device
+
         )
 
         return output_file
@@ -234,7 +234,7 @@ class UpscaleTask(BaseTask):
         )
 
         logger.info(
-            f"Upscaler ready | Device: GPU | Tile: {cfg['tile']} | Half: {cfg['half_precision']}"
+            f"Upscaler ready | Device: GPU | Tile: {config['tile']} | Half: {config['half_precision']}"
         )
 
         return upscaler
