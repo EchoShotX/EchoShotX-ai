@@ -97,6 +97,39 @@ graph LR
    - **예시**: `production`
    - **확인 방법**: AWS 콘솔 → CodeDeploy → Applications → Deployment groups
 
+#### GitHub 서브모듈 접근 (Private 서브모듈 사용 시)
+
+6. **PAT_TOKEN** (선택, private 서브모듈 사용 시)
+   - **설명**: GitHub Personal Access Token (PAT)
+   - **용도**: Private 서브모듈 접근
+   - **예시**: `ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`
+   - **언제 필요한가?**
+     - ✅ **필요한 경우**: 다른 조직/저장소의 private 서브모듈
+     - ✅ **필요한 경우**: 같은 조직이지만 `GITHUB_TOKEN` 권한이 부족한 경우
+     - ❌ **불필요한 경우**: 같은 조직 내 private 서브모듈이고 워크플로우 권한이 충분한 경우
+   - **생성 방법**: 
+     1. GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)
+     2. "Generate new token (classic)" 클릭
+     3. Note: "EchoShotX CI/CD" (설명)
+     4. Expiration: 적절한 기간 설정 (예: 90일, 1년)
+     5. 권한 선택: `repo` (전체 저장소 접근) 체크
+     6. "Generate token" 클릭
+     7. 토큰 생성 후 **즉시 복사** (다시 볼 수 없음)
+   - **설정 방법**:
+     1. GitHub 저장소 → Settings → Secrets and variables → Actions
+     2. "New repository secret" 클릭
+     3. Name: `PAT_TOKEN`
+     4. Value: 생성한 Personal Access Token 붙여넣기
+     5. "Add secret" 클릭
+   - **보안 주의사항**:
+     - 토큰은 절대 공개하지 않음
+     - 정기적으로 토큰 갱신 권장
+     - 최소 권한 원칙 (필요한 저장소만 접근 가능하도록)
+   - **워크플로우 동작**:
+     - `PAT_TOKEN`이 설정되어 있으면 우선 사용
+     - `PAT_TOKEN`이 없으면 기본 `GITHUB_TOKEN` 사용 (자동 fallback)
+     - 워크플로우 코드: `token: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}`
+
 ### Secrets 설정 방법
 
 1. GitHub 저장소로 이동
@@ -117,6 +150,12 @@ env:
   CODE_DEPLOY_DEPLOYMENT_GROUP: ${{ secrets.CODE_DEPLOY_DEPLOYMENT_GROUP }}
 
 steps:
+  - name: Checkout code
+    uses: actions/checkout@v4
+    with:
+      submodules: recursive
+      token: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
+
   - name: Configure AWS credentials
     uses: aws-actions/configure-aws-credentials@v4
     with:
@@ -125,7 +164,10 @@ steps:
       aws-region: ${{ env.AWS_REGION }}
 ```
 
-**참고**: ECR 관련 Secrets는 더 이상 필요하지 않습니다. Docker Compose를 사용하여 EC2에서 직접 빌드합니다.
+**참고**: 
+- `PAT_TOKEN`이 설정되어 있으면 사용하고, 없으면 기본 `GITHUB_TOKEN` 사용
+- 같은 조직 내 private 서브모듈: `GITHUB_TOKEN`으로 가능 (워크플로우 권한 설정 필요)
+- 다른 조직/저장소의 private 서브모듈: `PAT_TOKEN` 필수
 
 ### Secrets 체크리스트
 
@@ -136,6 +178,7 @@ steps:
 - [ ] `AWS_REGION` (선택)
 - [ ] `CODE_DEPLOY_APPLICATION_NAME`
 - [ ] `CODE_DEPLOY_DEPLOYMENT_GROUP`
+- [ ] `PAT_TOKEN` (private 서브모듈 사용 시, 다른 조직/저장소인 경우)
 
 ## Docker Compose 사용
 
