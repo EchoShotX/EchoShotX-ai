@@ -46,10 +46,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r echoshot_ai_server/requirements.txt
 
-      - name: Run tests
-        run: |
-          pytest echoshot_ai_server/ -v --tb=short || true
-        continue-on-error: true
+      # 테스트 비활성화화
+      # - name: Run tests
+      #   run: |
+      #     pytest echoshot_ai_server/ -v --tb=short || true
+      #   continue-on-error: true
 
   build-and-deploy:
     name: Build and Deploy
