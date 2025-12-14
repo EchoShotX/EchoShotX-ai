@@ -36,9 +36,10 @@ pydantic-settings==2.2.1  # 정확한 버전 지정
 # basicsr==1.4.2           # RRDBNet 포함
 
 # PyTorch + CUDA 12.1 (CUDA 12.x 드라이버용)
-torch==2.4.1+cu121 --index-url https://download.pytorch.org/whl/cu121
-torchvision==0.19.1+cu121 --index-url https://download.pytorch.org/whl/cu121
-torchaudio==2.4.1+cu121 --index-url https://download.pytorch.org/whl/cu121
+# PyTorch는 Dockerfile에서 CUDA 버전으로 설치됨 (requirements.txt에서는 제외)
+# torch==2.4.1+cu121 --index-url https://download.pytorch.org/whl/cu121
+# torchvision==0.19.1+cu121 --index-url https://download.pytorch.org/whl/cu121
+# torchaudio==2.4.1+cu121 --index-url https://download.pytorch.org/whl/cu121
 
 # Real-ESRGAN 관련
 basicsr==1.4.2
@@ -50,7 +51,7 @@ realesrgan==0.3.0
 opencv-python>=4.8.0
 opencv-contrib-python>=4.8.0  # DNN Super Resolution 모듈
 numpy>=1.24.0
-torch>=2.0.0
+# torch는 Dockerfile에서 CUDA 버전으로 설치됨
 
 # 선택적 의존성 (최고 품질 모드용)
 # Real-ESRGAN을 사용하려면 아래 주석 해제
