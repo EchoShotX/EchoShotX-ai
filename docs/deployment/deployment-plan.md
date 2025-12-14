@@ -175,4 +175,6 @@ GitHub Repository
 - [환경 변수 명세](./environment-variables.md)
 - [문제 해결 가이드](./troubleshooting.md)
 - [CI/CD 가이드](./cicd-guide.md)
+- [비용 최적화 가이드](./cost-optimization.md)
+- [EC2 초기 설정 가이드](./ec2-setup-guide.md)
 
