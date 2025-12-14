@@ -61,29 +61,87 @@ graph LR
 
 다음 Secrets를 GitHub 저장소에 설정해야 합니다:
 
-1. **AWS_ACCESS_KEY_ID**
-   - AWS 접근 키 ID
-   - IAM 사용자 또는 역할의 접근 키
+#### AWS 인증 정보
 
-2. **AWS_SECRET_ACCESS_KEY**
-   - AWS 시크릿 접근 키
-   - IAM 사용자 또는 역할의 시크릿 키
+1. **AWS_ACCESS_KEY_ID** (필수)
+   - **설명**: AWS 접근 키 ID
+   - **용도**: AWS 서비스 (ECR, S3, CodeDeploy) 접근
+   - **예시**: `AKIAIOSFODNN7EXAMPLE`
+   - **설정 위치**: GitHub 저장소 → Settings → Secrets and variables → Actions
 
-3. **AWS_REGION**
-   - AWS 리전
-   - 예: `ap-northeast-2`
+2. **AWS_SECRET_ACCESS_KEY** (필수)
+   - **설명**: AWS 시크릿 접근 키
+   - **용도**: AWS 서비스 인증
+   - **예시**: `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY`
+   - **보안**: 절대 공개하지 않음
 
-4. **ECR_REPOSITORY**
-   - ECR 저장소 이름
-   - 예: `echoshot-worker`
+#### AWS 리소스 정보
 
-5. **CODE_DEPLOY_APPLICATION_NAME**
-   - CodeDeploy 애플리케이션 이름
-   - 예: `EchoShotWorker`
+3. **AWS_REGION** (선택, 기본값: ap-northeast-2)
+   - **설명**: AWS 리전
+   - **용도**: 모든 AWS 서비스 요청의 리전 지정
+   - **예시**: `ap-northeast-2`
+   - **기본값**: 설정하지 않으면 `ap-northeast-2` 사용
 
-6. **CODE_DEPLOY_DEPLOYMENT_GROUP**
-   - CodeDeploy 배포 그룹 이름
-   - 예: `production`
+4. **ECR_REPOSITORY** (필수)
+   - **설명**: ECR 저장소 이름
+   - **용도**: Docker 이미지 푸시 대상 저장소
+   - **예시**: `echoshot-worker`
+   - **확인 방법**: AWS 콘솔 → ECR → Repositories
+
+#### CodeDeploy 설정
+
+5. **CODE_DEPLOY_APPLICATION_NAME** (필수)
+   - **설명**: CodeDeploy 애플리케이션 이름
+   - **용도**: 배포 대상 애플리케이션 지정
+   - **예시**: `EchoShotWorker`
+   - **확인 방법**: AWS 콘솔 → CodeDeploy → Applications
+
+6. **CODE_DEPLOY_DEPLOYMENT_GROUP** (필수)
+   - **설명**: CodeDeploy 배포 그룹 이름
+   - **용도**: 배포 대상 인스턴스 그룹 지정
+   - **예시**: `production`
+   - **확인 방법**: AWS 콘솔 → CodeDeploy → Applications → Deployment groups
+
+### Secrets 설정 방법
+
+1. GitHub 저장소로 이동
+2. **Settings** → **Secrets and variables** → **Actions** 클릭
+3. **New repository secret** 버튼 클릭
+4. Name과 Value 입력
+5. **Add secret** 클릭
+
+### Secrets 확인
+
+워크플로우에서 사용되는 Secrets 목록:
+
+```yaml
+# .github/workflows/deploy.yml에서 사용
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION || 'ap-northeast-2' }}
+  ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+  CODE_DEPLOY_APPLICATION_NAME: ${{ secrets.CODE_DEPLOY_APPLICATION_NAME }}
+  CODE_DEPLOY_DEPLOYMENT_GROUP: ${{ secrets.CODE_DEPLOY_DEPLOYMENT_GROUP }}
+
+steps:
+  - name: Configure AWS credentials
+    uses: aws-actions/configure-aws-credentials@v4
+    with:
+      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      aws-region: ${{ env.AWS_REGION }}
+```
+
+### Secrets 체크리스트
+
+배포 전 다음 Secrets가 모두 설정되어 있는지 확인:
+
+- [ ] `AWS_ACCESS_KEY_ID`
+- [ ] `AWS_SECRET_ACCESS_KEY`
+- [ ] `AWS_REGION` (선택)
+- [ ] `ECR_REPOSITORY`
+- [ ] `CODE_DEPLOY_APPLICATION_NAME`
+- [ ] `CODE_DEPLOY_DEPLOYMENT_GROUP`
 
 ### Secrets 설정 방법
 

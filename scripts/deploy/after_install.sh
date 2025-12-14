@@ -8,10 +8,23 @@ echo "=== AfterInstall: 환경 설정 ==="
 
 APP_DIR="/opt/echoshot-worker"
 ENV_FILE="$APP_DIR/.env.prod"
+CONFIG_DIR="$APP_DIR/EchoShotX-ai-private"
 
-# 환경 변수 파일이 없으면 생성 (템플릿 사용)
-if [ ! -f "$ENV_FILE" ]; then
-    echo "환경 변수 파일이 없습니다. 템플릿을 생성합니다..."
+# 서브모듈에서 환경 변수 파일 복사
+if [ -d "$CONFIG_DIR" ] && [ -f "$CONFIG_DIR/.env.prod" ]; then
+    echo "서브모듈에서 환경 변수 파일을 복사합니다..."
+    cp "$CONFIG_DIR/.env.prod" "$ENV_FILE"
+    chmod 600 "$ENV_FILE"
+    echo "환경 변수 파일이 서브모듈에서 복사되었습니다: $ENV_FILE"
+elif [ -f "$APP_DIR/EchoShotX-ai-private/.env.prod" ]; then
+    # CodeDeploy 배포 시 서브모듈이 포함된 경우
+    echo "배포된 서브모듈에서 환경 변수 파일을 복사합니다..."
+    cp "$APP_DIR/EchoShotX-ai-private/.env.prod" "$ENV_FILE"
+    chmod 600 "$ENV_FILE"
+    echo "환경 변수 파일이 복사되었습니다: $ENV_FILE"
+else
+    echo "WARNING: 서브모듈에서 .env.prod 파일을 찾을 수 없습니다."
+    echo "기본 템플릿을 생성합니다..."
     
     # 환경 변수는 CodeDeploy 환경 변수나 Systems Manager Parameter Store에서 가져옴
     # 프로덕션 환경만 사용
@@ -45,8 +58,7 @@ LOG_LEVEL=${LOG_LEVEL:-INFO}
 APP_ENV=prod
 EOF
     chmod 600 "$ENV_FILE"
-    echo "환경 변수 파일이 생성되었습니다: $ENV_FILE"
-    echo "필요한 환경 변수를 설정해주세요."
+    echo "기본 템플릿이 생성되었습니다. 실제 값으로 업데이트가 필요합니다."
 fi
 
 # 디렉토리 생성

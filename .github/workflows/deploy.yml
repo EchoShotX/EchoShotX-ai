@@ -32,6 +32,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -57,6 +60,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -92,9 +98,18 @@ jobs:
 
       - name: Create deployment package
         run: |
+          # 서브모듈 초기화 확인
+          if [ -d "EchoShotX-ai-private" ]; then
+            echo "서브모듈이 확인되었습니다."
+            ls -la EchoShotX-ai-private/
+          else
+            echo "WARNING: 서브모듈이 없습니다."
+          fi
+          
           mkdir -p deploy-package
           cp -r echoshot_ai_server deploy-package/
           cp -r scripts deploy-package/
+          cp -r EchoShotX-ai-private deploy-package/  # 서브모듈 포함
           cp appspec.yml deploy-package/
           cp Dockerfile deploy-package/
           cd deploy-package
