@@ -93,11 +93,16 @@ jobs:
 
       - name: Upload to S3
         run: |
-          S3_BUCKET="codedeploy-echoshot-$(echo ${{ env.AWS_REGION }} | tr -d '-')"
-          S3_KEY="deployments/echoshot-worker/${{ github.sha }}.zip"
+          # S3 버킷 이름 설정 (Secret이 있으면 사용, 없으면 자동 생성)
+          if [ -n "${{ secrets.CODEDEPLOY_S3_BUCKET }}" ]; then
+            S3_BUCKET="${{ secrets.CODEDEPLOY_S3_BUCKET }}"
+          else
+            S3_BUCKET="codedeploy-echoshot-$(echo ${{ env.AWS_REGION }} | tr -d '-')"
+            # S3 버킷이 없으면 생성 (선택적)
+            aws s3 mb s3://$S3_BUCKET --region ${{ env.AWS_REGION }} || true
+          fi
           
-          # S3 버킷이 없으면 생성 (선택적)
-          aws s3 mb s3://$S3_BUCKET --region ${{ env.AWS_REGION }} || true
+          S3_KEY="deployments/echoshot-worker/${{ github.sha }}.zip"
           
           # 배포 패키지 업로드
           aws s3 cp deploy-package.zip s3://$S3_BUCKET/$S3_KEY

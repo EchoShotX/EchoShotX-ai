@@ -97,9 +97,21 @@ graph LR
    - **예시**: `production`
    - **확인 방법**: AWS 콘솔 → CodeDeploy → Applications → Deployment groups
 
+#### CodeDeploy 배포용 S3 버킷 (선택)
+
+6. **CODEDEPLOY_S3_BUCKET** (선택)
+   - **설명**: CodeDeploy 배포 패키지를 저장할 S3 버킷 이름
+   - **용도**: 배포 패키지 업로드 및 CodeDeploy가 접근할 버킷
+   - **예시**: `codedeploy-echoshot-apnortheast2` 또는 `my-codedeploy-bucket`
+   - **기본값**: 설정하지 않으면 자동으로 `codedeploy-echoshot-{리전}` 형식으로 생성
+   - **주의사항**:
+     - 버킷이 이미 존재해야 함 (자동 생성되지 않음)
+     - CodeDeploy가 접근할 수 있는 권한이 있어야 함
+     - 버킷 정책에서 CodeDeploy 서비스 접근 허용 필요
+
 #### GitHub 서브모듈 접근 (Private 서브모듈 사용 시)
 
-6. **PAT_TOKEN** (선택, private 서브모듈 사용 시)
+7. **PAT_TOKEN** (선택, private 서브모듈 사용 시)
    - **설명**: GitHub Personal Access Token (PAT)
    - **용도**: Private 서브모듈 접근
    - **예시**: `ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`
@@ -178,7 +190,8 @@ steps:
 - [ ] `AWS_REGION` (선택)
 - [ ] `CODE_DEPLOY_APPLICATION_NAME`
 - [ ] `CODE_DEPLOY_DEPLOYMENT_GROUP`
-- [ ] `PAT_TOKEN` (private 서브모듈 사용 시, 다른 조직/저장소인 경우)
+- [ ] `CODEDEPLOY_S3_BUCKET` (선택, 특정 버킷 사용 시)
+- [ ] `PAT_TOKEN` (private 서브모듈 사용 시, 필요시에만 설정)
 
 ## Docker Compose 사용
 
