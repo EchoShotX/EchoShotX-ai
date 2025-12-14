@@ -30,6 +30,8 @@ Thumbs.db
 .env.local
 .env.development
 .env.production
+.env.prod
+.env.test
 
 # Model weights or large files (if any)
 *.pt
