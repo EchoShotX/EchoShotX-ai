@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: echoshot-worker
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    volumes:
+      - /tmp/video_processing:/tmp/video_processing
+      - ./logs:/app/logs
+    networks:
+      - echoshot-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  echoshot-network:
+    external: true
+

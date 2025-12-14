@@ -21,7 +21,6 @@ on:
 
 env:
   AWS_REGION: ${{ secrets.AWS_REGION || 'ap-northeast-2' }}
-  ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
   CODE_DEPLOY_APPLICATION_NAME: ${{ secrets.CODE_DEPLOY_APPLICATION_NAME }}
   CODE_DEPLOY_DEPLOYMENT_GROUP: ${{ secrets.CODE_DEPLOY_DEPLOYMENT_GROUP }}
 
@@ -71,31 +70,6 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build Docker image
-        id: build-image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile
-          push: false
-          tags: |
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
-          cache-from: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:buildcache
-          cache-to: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:buildcache,mode=max
-
-      - name: Push Docker image to ECR
-        run: |
-          docker push ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
-          docker push ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
-
       - name: Create deployment package
         run: |
           # 서브모듈 초기화 확인
@@ -112,6 +86,7 @@ jobs:
           cp -r EchoShotX-ai-private deploy-package/  # 서브모듈 포함
           cp appspec.yml deploy-package/
           cp Dockerfile deploy-package/
+          cp docker-compose.yml deploy-package/  # Docker Compose 파일 포함
           cd deploy-package
           zip -r ../deploy-package.zip .
           cd ..

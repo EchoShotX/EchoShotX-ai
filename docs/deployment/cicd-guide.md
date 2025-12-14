@@ -13,14 +13,16 @@ graph LR
     C --> D[테스트 실행]
     D --> E{테스트 통과?}
     E -->|실패| F[배포 중단]
-    E -->|성공| G[Docker 빌드]
-    G --> H[ECR 푸시]
+    E -->|성공| G[배포 패키지 생성]
+    G --> H[S3 업로드]
     H --> I[CodeDeploy 트리거]
     I --> J[EC2 배포]
-    J --> K[Health Check]
-    K --> L{Health Check 통과?}
-    L -->|실패| M[롤백]
-    L -->|성공| N[배포 완료]
+    J --> K[Docker Compose 빌드]
+    K --> L[컨테이너 실행]
+    L --> M[Health Check]
+    M --> N{Health Check 통과?}
+    N -->|실패| O[롤백]
+    N -->|성공| P[배포 완료]
 ```
 
 ## GitHub Actions 워크플로우
@@ -42,14 +44,12 @@ graph LR
    - `pytest` 실행
    - 테스트 커버리지 수집 (옵션)
 
-4. **Docker 이미지 빌드**
-   - Dockerfile을 사용한 이미지 빌드
-   - 멀티 스테이지 빌드로 최적화
+4. **배포 패키지 생성**
+   - 소스 코드, 스크립트, docker-compose.yml 포함
+   - 서브모듈 포함
 
-5. **ECR 푸시**
-   - AWS ECR 로그인
-   - 이미지 태깅 (latest, 커밋 SHA)
-   - ECR에 푸시
+5. **S3 업로드**
+   - 배포 패키지를 S3에 업로드
 
 6. **CodeDeploy 배포 트리거**
    - AWS CLI를 통한 배포 생성
@@ -65,7 +65,7 @@ graph LR
 
 1. **AWS_ACCESS_KEY_ID** (필수)
    - **설명**: AWS 접근 키 ID
-   - **용도**: AWS 서비스 (ECR, S3, CodeDeploy) 접근
+   - **용도**: AWS 서비스 (S3, CodeDeploy) 접근
    - **예시**: `AKIAIOSFODNN7EXAMPLE`
    - **설정 위치**: GitHub 저장소 → Settings → Secrets and variables → Actions
 
@@ -79,25 +79,19 @@ graph LR
 
 3. **AWS_REGION** (선택, 기본값: ap-northeast-2)
    - **설명**: AWS 리전
-   - **용도**: 모든 AWS 서비스 요청의 리전 지정
+   - **용도**: 모든 AWS 서비스 요청의 리전 지정 (S3, CodeDeploy)
    - **예시**: `ap-northeast-2`
    - **기본값**: 설정하지 않으면 `ap-northeast-2` 사용
 
-4. **ECR_REPOSITORY** (필수)
-   - **설명**: ECR 저장소 이름
-   - **용도**: Docker 이미지 푸시 대상 저장소
-   - **예시**: `echoshot-worker`
-   - **확인 방법**: AWS 콘솔 → ECR → Repositories
-
 #### CodeDeploy 설정
 
-5. **CODE_DEPLOY_APPLICATION_NAME** (필수)
+4. **CODE_DEPLOY_APPLICATION_NAME** (필수)
    - **설명**: CodeDeploy 애플리케이션 이름
    - **용도**: 배포 대상 애플리케이션 지정
    - **예시**: `EchoShotWorker`
    - **확인 방법**: AWS 콘솔 → CodeDeploy → Applications
 
-6. **CODE_DEPLOY_DEPLOYMENT_GROUP** (필수)
+5. **CODE_DEPLOY_DEPLOYMENT_GROUP** (필수)
    - **설명**: CodeDeploy 배포 그룹 이름
    - **용도**: 배포 대상 인스턴스 그룹 지정
    - **예시**: `production`
@@ -119,7 +113,6 @@ graph LR
 # .github/workflows/deploy.yml에서 사용
 env:
   AWS_REGION: ${{ secrets.AWS_REGION || 'ap-northeast-2' }}
-  ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
   CODE_DEPLOY_APPLICATION_NAME: ${{ secrets.CODE_DEPLOY_APPLICATION_NAME }}
   CODE_DEPLOY_DEPLOYMENT_GROUP: ${{ secrets.CODE_DEPLOY_DEPLOYMENT_GROUP }}
 
@@ -132,6 +125,8 @@ steps:
       aws-region: ${{ env.AWS_REGION }}
 ```
 
+**참고**: ECR 관련 Secrets는 더 이상 필요하지 않습니다. Docker Compose를 사용하여 EC2에서 직접 빌드합니다.
+
 ### Secrets 체크리스트
 
 배포 전 다음 Secrets가 모두 설정되어 있는지 확인:
@@ -139,9 +134,39 @@ steps:
 - [ ] `AWS_ACCESS_KEY_ID`
 - [ ] `AWS_SECRET_ACCESS_KEY`
 - [ ] `AWS_REGION` (선택)
-- [ ] `ECR_REPOSITORY`
 - [ ] `CODE_DEPLOY_APPLICATION_NAME`
 - [ ] `CODE_DEPLOY_DEPLOYMENT_GROUP`
+
+## Docker Compose 사용
+
+이 프로젝트는 Docker Compose를 사용하여 EC2에서 직접 빌드 및 실행합니다.
+
+### Docker Compose 파일
+
+프로젝트 루트에 `docker-compose.yml` 파일이 포함되어 있으며, 다음을 포함합니다:
+
+- Dockerfile 기반 빌드
+- 환경 변수 파일(.env.prod) 사용
+- 볼륨 마운트 설정
+- 네트워크 설정
+- 로깅 설정
+
+### 배포 프로세스
+
+1. **소스 코드 배포**: GitHub Actions에서 소스 코드를 S3에 업로드
+2. **CodeDeploy**: EC2에 소스 코드 배포
+3. **Docker Compose 빌드**: EC2에서 `docker-compose up --build` 실행
+4. **컨테이너 실행**: 빌드된 이미지로 컨테이너 시작
+
+### EC2 요구사항
+
+EC2 인스턴스에 다음이 설치되어 있어야 합니다:
+
+- Docker
+- Docker Compose
+- CodeDeploy Agent
+
+`before_install.sh` 스크립트에서 자동으로 설치를 확인하고 필요시 설치합니다.
 
 ### Secrets 설정 방법
 
@@ -164,16 +189,15 @@ steps:
     {
       "Effect": "Allow",
       "Action": [
-        "ecr:GetAuthorizationToken",
-        "ecr:BatchCheckLayerAvailability",
-        "ecr:GetDownloadUrlForLayer",
-        "ecr:BatchGetImage",
-        "ecr:PutImage",
-        "ecr:InitiateLayerUpload",
-        "ecr:UploadLayerPart",
-        "ecr:CompleteLayerUpload"
+        "s3:PutObject",
+        "s3:GetObject",
+        "s3:CreateBucket",
+        "s3:ListBucket"
       ],
-      "Resource": "*"
+      "Resource": [
+        "arn:aws:s3:::codedeploy-echoshot-*",
+        "arn:aws:s3:::codedeploy-echoshot-*/*"
+      ]
     },
     {
       "Effect": "Allow",
@@ -190,6 +214,8 @@ steps:
   ]
 }
 ```
+
+**참고**: ECR 관련 권한은 더 이상 필요하지 않습니다. Docker Compose를 사용하여 EC2에서 직접 빌드하므로 ECR 접근 권한이 필요 없습니다.
 
 ## 워크플로우 트리거
 
@@ -244,29 +270,9 @@ GitHub Actions UI에서 수동으로 워크플로우를 실행할 수 있습니�
 
 ```yaml
 env:
-  DOCKER_IMAGE_TAG: ${{ github.sha }}
-  ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
-```
-
-## Docker 이미지 태깅 전략
-
-### 태그 형식
-
-1. **latest**: 최신 배포
-2. **{commit-sha}**: 커밋 SHA (예: `abc1234`)
-3. **v{timestamp}**: 타임스탬프 (예: `v20240101120000`)
-
-### 태깅 예시
-
-```bash
-# latest 태그
-docker tag $IMAGE_NAME:latest $ECR_REPO:latest
-
-# 커밋 SHA 태그
-docker tag $IMAGE_NAME:latest $ECR_REPO:$GITHUB_SHA
-
-# 타임스탬프 태그
-docker tag $IMAGE_NAME:latest $ECR_REPO:v$(date +%Y%m%d%H%M%S)
+  AWS_REGION: ${{ secrets.AWS_REGION || 'ap-northeast-2' }}
+  CODE_DEPLOY_APPLICATION_NAME: ${{ secrets.CODE_DEPLOY_APPLICATION_NAME }}
+  CODE_DEPLOY_DEPLOYMENT_GROUP: ${{ secrets.CODE_DEPLOY_DEPLOYMENT_GROUP }}
 ```
 
 ## CodeDeploy 배포 트리거
@@ -334,7 +340,7 @@ aws deploy get-deployment \
    - IAM 권한 확인
 
 3. **네트워크 문제**
-   - ECR 접근 확인
+   - S3 접근 확인
    - 인터넷 연결 확인
 
 ### 배포 실패
@@ -383,5 +389,5 @@ aws deploy get-deployment \
 
 - [GitHub Actions 문서](https://docs.github.com/en/actions)
 - [AWS CodeDeploy 문서](https://docs.aws.amazon.com/codedeploy/)
-- [ECR 문서](https://docs.aws.amazon.com/ecr/)
+- [Docker Compose 문서](https://docs.docker.com/compose/)
 
