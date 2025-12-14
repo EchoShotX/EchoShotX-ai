@@ -81,5 +81,47 @@ if id "ec2-user" &>/dev/null; then
     usermod -aG docker ec2-user || true
 fi
 
+# GPU 인스턴스 확인 및 NVIDIA 드라이버/Docker GPU 지원 확인
+if lspci | grep -i nvidia &> /dev/null; then
+    echo "GPU 인스턴스가 감지되었습니다. NVIDIA 드라이버 및 Docker GPU 지원을 확인합니다..."
+    
+    # NVIDIA 드라이버 확인
+    if ! command -v nvidia-smi &> /dev/null; then
+        echo "WARNING: NVIDIA 드라이버가 설치되어 있지 않습니다."
+        echo "GPU 인스턴스는 일반적으로 NVIDIA 드라이버가 사전 설치되어 있습니다."
+        echo "수동으로 설치가 필요한 경우 AWS Deep Learning AMI를 사용하거나 NVIDIA 드라이버를 설치하세요."
+    else
+        echo "NVIDIA 드라이버 확인 완료:"
+        nvidia-smi --query-gpu=name,driver_version --format=csv,noheader || true
+    fi
+    
+    # NVIDIA Container Toolkit 확인 (Docker GPU 지원)
+    if [ ! -f /usr/bin/nvidia-container-runtime ]; then
+        echo "NVIDIA Container Toolkit이 설치되어 있지 않습니다. 설치를 진행합니다..."
+        # Ubuntu/Debian
+        if [ -f /etc/os-release ] && grep -q "Ubuntu\|Debian" /etc/os-release; then
+            distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
+            curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | apt-key add -
+            curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list | tee /etc/apt/sources.list.d/nvidia-docker.list
+            apt-get update
+            apt-get install -y nvidia-container-toolkit
+            systemctl restart docker
+        # Amazon Linux 2
+        elif [ -f /etc/os-release ] && grep -q "Amazon Linux" /etc/os-release; then
+            distribution="rhel7"
+            curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.repo | tee /etc/yum.repos.d/nvidia-docker.repo
+            yum install -y nvidia-container-toolkit
+            systemctl restart docker
+        else
+            echo "WARNING: NVIDIA Container Toolkit 자동 설치를 지원하지 않는 OS입니다."
+            echo "수동으로 설치해주세요: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html"
+        fi
+    else
+        echo "NVIDIA Container Toolkit 확인 완료."
+    fi
+else
+    echo "GPU 인스턴스가 아닙니다. CPU 모드로 실행됩니다."
+fi
+
 echo "=== BeforeInstall 완료 ==="
 

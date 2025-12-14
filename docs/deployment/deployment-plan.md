@@ -44,12 +44,13 @@ GitHub Repository
 ### 1. 사전 준비사항
 
 #### AWS 리소스
-- EC2 인스턴스 (Python Worker용)
-- ECR 저장소 (Docker 이미지 저장)
+- EC2 인스턴스 (Python Worker용, GPU 인스턴스 권장: g4dn.xlarge)
 - CodeDeploy 애플리케이션 및 배포 그룹
 - SQS 큐 (작업 큐)
 - S3 버킷 (영상 파일 저장)
 - Redis 인스턴스 (다른 EC2에 위치)
+
+**비용 최적화**: EC2 인스턴스 스펙 및 비용 최적화 전략은 [cost-optimization.md](./cost-optimization.md) 참조
 
 #### GitHub 설정
 - GitHub Secrets 설정 (AWS 인증 정보, ECR 정보 등)

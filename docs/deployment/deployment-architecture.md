@@ -123,9 +123,15 @@ graph TD
 ### 4. EC2-A (Python Worker)
 
 **인스턴스 사양**:
-- 인스턴스 타입: GPU 인스턴스 권장 (g4dn.xlarge 이상)
+- 인스턴스 타입: GPU 인스턴스 권장
+  - **최소**: g4dn.xlarge (T4 GPU, 16GB VRAM) - 권장
+  - **고성능**: g4dn.2xlarge 또는 g5.xlarge
+  - **비용 최적화**: Spot 인스턴스 사용 고려
 - OS: Amazon Linux 2 또는 Ubuntu 22.04
 - Docker: 최신 버전 설치
+- GPU 드라이버: NVIDIA 드라이버 및 Docker GPU 지원
+
+**비용 최적화**: 자세한 내용은 [cost-optimization.md](./cost-optimization.md) 참조
 
 **설치된 소프트웨어**:
 - Docker & Docker Compose
