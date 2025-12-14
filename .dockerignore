@@ -1,0 +1,85 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info
+dist
+build
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Test files
+test_*.py
+test_*.mp4
+test_videos/
+output_upscaled/
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Deployment
+scripts/
+.github/
+appspec.yml
+.env*
+!.env.prod.example
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+
+# Weights (will be copied separately or mounted)
+# weights/ 주석 처리 - Dockerfile에서 복사함
+
+# Output
+output_*/
+
+# Cache
+.cache/
+.pytest_cache/
+.mypy_cache/
+
+# Jupyter
+.ipynb_checkpoints
+*.ipynb
+
+# Coverage
+.coverage
+htmlcov/
+.coverage.*
+
+# Local development files
+download_models.py
+test_upscale_local.py
+

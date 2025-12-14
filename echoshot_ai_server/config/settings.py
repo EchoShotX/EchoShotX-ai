@@ -48,9 +48,9 @@ class Settings(BaseSettings):
         Pydantic Settings Config
         - env_file: .env 파일 경로 지정
         - case_sensitive: 환경 변수 대소문자 구분 여부
-        - APP_ENV 값(dev, prod 등)에 따라 다른 .env 파일 로드 가능
+        - 프로덕션 환경만 사용 (.env.prod)
         """
-        env_file = f".env.{os.getenv('APP_ENV', 'dev')}"  # 기본은 .env.dev
+        env_file = ".env.prod"  # 프로덕션 환경만 사용
         case_sensitive = True
 
 

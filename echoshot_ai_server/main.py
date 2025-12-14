@@ -1,4 +1,5 @@
 import sys
+import logging
 from pathlib import Path
 from config.settings import get_settings
 from config.logging_config import setup_logging
@@ -7,6 +8,8 @@ from core.s3_client import S3Client
 from core.api_client import SpringAPIClient
 from services.job_processor import JobProcessor
 from services.worker_pool import WorkerPool
+
+logger = logging.getLogger(__name__)
 
 
 def main():
@@ -18,3 +21,42 @@ def main():
     setup_logging(settings.LOG_LEVEL)
     logger.info("Starting Video AI Server")
     logger.info(f"Configuration: {settings.dict()}")
+
+    # 임시 디렉토리 생성
+    temp_dir = Path(settings.TEMP_DIR)
+    temp_dir.mkdir(parents=True, exist_ok=True)
+
+    # 클라이언트 초기화
+    sqs_client = SQSClient()
+    s3_client = S3Client()
+    api_client = SpringAPIClient()
+
+    # Job Processor 초기화
+    job_processor = JobProcessor(
+        s3_client=s3_client,
+        api_client=api_client,
+        temp_dir=temp_dir,
+        max_retries=settings.MAX_RETRIES
+    )
+
+    # Worker Pool 초기화 및 시작
+    worker_pool = WorkerPool(
+        worker_count=settings.WORKER_COUNT,
+        sqs_client=sqs_client,
+        job_processor=job_processor
+    )
+
+    try:
+        logger.info("Starting worker pool...")
+        worker_pool.start()
+    except KeyboardInterrupt:
+        logger.info("Received interrupt signal, shutting down...")
+    except Exception as e:
+        logger.error(f"Fatal error: {e}", exc_info=True)
+        sys.exit(1)
+    finally:
+        logger.info("Shutdown complete")
+
+
+if __name__ == "__main__":
+    main()
