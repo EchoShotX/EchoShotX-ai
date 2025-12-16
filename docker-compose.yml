@@ -5,6 +5,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        BUILD_FOR: ${BUILD_FOR:-cpu}
+        CUDA_VERSION: ${CUDA_VERSION:-cu121}
     container_name: echoshot-worker
     restart: unless-stopped
     env_file:

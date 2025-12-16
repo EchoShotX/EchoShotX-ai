@@ -37,10 +37,26 @@ if [ -f "$APP_DIR/docker-compose.yml" ]; then
     docker-compose down || true
 fi
 
+# GPU 감지 및 빌드 인자 설정
+if lspci | grep -i nvidia &> /dev/null; then
+    echo "GPU 인스턴스가 감지되었습니다. CUDA 버전으로 빌드합니다..."
+    BUILD_FOR="gpu"
+    CUDA_VERSION="cu121"
+else
+    echo "CPU 인스턴스입니다. CPU 버전으로 빌드합니다..."
+    BUILD_FOR="cpu"
+    CUDA_VERSION=""
+fi
+
+# BuildKit 활성화 (pip 캐시 활용)
+export DOCKER_BUILDKIT=1
+export COMPOSE_DOCKER_CLI_BUILD=1
+
 # Docker 이미지 빌드 (캐시 활용)
 echo "Docker 이미지를 빌드합니다 (이 작업은 시간이 걸릴 수 있습니다)..."
+echo "빌드 모드: $BUILD_FOR"
 cd "$APP_DIR"
-docker-compose build
+docker-compose build --build-arg BUILD_FOR=$BUILD_FOR --build-arg CUDA_VERSION=$CUDA_VERSION
 
 echo "=== Install 완료 ==="
 

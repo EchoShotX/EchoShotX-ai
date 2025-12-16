@@ -3,6 +3,10 @@
 # Stage 1: 빌드 스테이지
 FROM python:3.10-slim as builder
 
+# 빌드 인자 정의 (기본값: CPU)
+ARG BUILD_FOR=cpu
+ARG CUDA_VERSION=cu121
+
 # 빌드 의존성 설치
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
@@ -15,16 +19,27 @@ WORKDIR /build
 # Python 의존성 복사 및 설치
 COPY echoshot_ai_server/requirements.txt /build/requirements.txt
 
-# PyTorch 및 의존성 설치 (CUDA 지원)
+# PyTorch 및 의존성 설치 (GPU/CPU 조건부)
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir \
-    torch==2.4.1+cu121 \
-    torchvision==0.19.1+cu121 \
-    torchaudio==2.4.1+cu121 \
-    --index-url https://download.pytorch.org/whl/cu121
+    if [ "$BUILD_FOR" = "gpu" ]; then \
+        echo "Installing PyTorch with CUDA support..." && \
+        pip install --no-cache-dir \
+        torch==2.4.1+${CUDA_VERSION} \
+        torchvision==0.19.1+${CUDA_VERSION} \
+        torchaudio==2.4.1+${CUDA_VERSION} \
+        --index-url https://download.pytorch.org/whl/${CUDA_VERSION}; \
+    else \
+        echo "Installing PyTorch CPU version..." && \
+        pip install --no-cache-dir \
+        torch==2.4.1 \
+        torchvision==0.19.1 \
+        torchaudio==2.4.1 \
+        --index-url https://download.pytorch.org/whl/cpu; \
+    fi
 
-# 나머지 의존성 설치
-RUN pip install --no-cache-dir -r requirements.txt
+# 나머지 의존성 설치 (BuildKit pip 캐시 활용)
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir -r requirements.txt
 
 # Stage 2: 런타임 스테이지
 FROM python:3.10-slim
