@@ -57,7 +57,7 @@ if ! command -v ffmpeg &> /dev/null; then
     fi
 fi
 
-# AWS CLI 설치 확인 (ECR 로그인용)
+# AWS CLI 설치 확인 (S3/SQS 접근용)
 if ! command -v aws &> /dev/null; then
     echo "AWS CLI를 설치합니다..."
     # Amazon Linux 2

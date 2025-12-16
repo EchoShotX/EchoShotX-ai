@@ -26,11 +26,31 @@ fi
 echo "Docker Compose로 컨테이너를 시작합니다..."
 docker-compose up -d
 
-# 컨테이너 시작 확인
-sleep 10
+# 컨테이너 시작 확인 (헬스체크 기반)
+echo "컨테이너 시작 대기 중..."
+MAX_WAIT=60
+ELAPSED=0
+INTERVAL=2
+
+while [ $ELAPSED -lt $MAX_WAIT ]; do
+    if docker ps | grep -q echoshot-worker; then
+        CONTAINER_STATUS=$(docker inspect -f '{{.State.Status}}' echoshot-worker 2>/dev/null || echo "notfound")
+        if [ "$CONTAINER_STATUS" = "running" ]; then
+            echo "컨테이너가 정상적으로 시작되었습니다."
+            break
+        fi
+    fi
+    sleep $INTERVAL
+    ELAPSED=$((ELAPSED + INTERVAL))
+    echo "대기 중... (${ELAPSED}/${MAX_WAIT}초)"
+done
+
 if ! docker ps | grep -q echoshot-worker; then
     echo "ERROR: 컨테이너가 시작되지 않았습니다."
+    echo "컨테이너 로그:"
     docker-compose logs
+    echo "컨테이너 상태:"
+    docker-compose ps
     exit 1
 fi
 

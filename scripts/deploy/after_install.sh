@@ -80,12 +80,6 @@ if [ -z "$(ls -A $WEIGHTS_DIR 2>/dev/null)" ]; then
     echo "Docker 이미지에 포함되어 있거나, 런타임에 다운로드해야 합니다."
 fi
 
-# Docker 네트워크 생성 (필요한 경우)
-if ! docker network ls | grep -q echoshot-network; then
-    echo "Docker 네트워크를 생성합니다..."
-    docker network create echoshot-network || true
-fi
-
 # 파일 권한 설정
 chown -R root:root "$APP_DIR"
 chmod 755 "$APP_DIR"
