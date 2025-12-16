@@ -1,6 +1,6 @@
 #!/bin/bash
 # ApplicationStart 스크립트
-# Docker Compose로 컨테이너 실행
+# Docker Compose로 컨테이너 실행 (빌드 없이)
 
 set -e
 
@@ -22,9 +22,9 @@ if [ ! -f "$APP_DIR/docker-compose.yml" ]; then
     exit 1
 fi
 
-# Docker Compose로 컨테이너 빌드 및 실행
-echo "Docker Compose로 컨테이너를 빌드하고 시작합니다..."
-docker-compose up -d --build
+# Docker Compose로 컨테이너 실행 (빌드 없이)
+echo "Docker Compose로 컨테이너를 시작합니다..."
+docker-compose up -d
 
 # 컨테이너 시작 확인
 sleep 10

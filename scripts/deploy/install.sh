@@ -1,10 +1,10 @@
 #!/bin/bash
 # Install 스크립트
-# Docker Compose 준비
+# Docker 이미지 빌드
 
 set -e
 
-echo "=== Install: Docker Compose 준비 ==="
+echo "=== Install: Docker 이미지 빌드 ==="
 
 APP_DIR="/opt/echoshot-worker"
 cd "$APP_DIR"
@@ -36,6 +36,11 @@ if [ -f "$APP_DIR/docker-compose.yml" ]; then
     cd "$APP_DIR"
     docker-compose down || true
 fi
+
+# Docker 이미지 빌드 (캐시 활용)
+echo "Docker 이미지를 빌드합니다 (이 작업은 시간이 걸릴 수 있습니다)..."
+cd "$APP_DIR"
+docker-compose build
 
 echo "=== Install 완료 ==="
 
