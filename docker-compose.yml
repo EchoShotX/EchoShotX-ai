@@ -34,5 +34,5 @@ services:
 
 networks:
   echoshot-network:
-    external: true
+    driver: bridge
 
