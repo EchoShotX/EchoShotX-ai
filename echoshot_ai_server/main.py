@@ -20,7 +20,7 @@ def main():
     # 로깅 설정
     setup_logging(settings.LOG_LEVEL)
     logger.info("Starting Video AI Server")
-    logger.info(f"Configuration: {settings.dict()}")
+    logger.info(f"Configuration: {settings.model_dump()}")
 
     # 임시 디렉토리 생성
     temp_dir = Path(settings.TEMP_DIR)
