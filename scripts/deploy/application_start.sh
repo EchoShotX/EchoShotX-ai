@@ -22,9 +22,13 @@ if [ ! -f "$APP_DIR/docker-compose.yml" ]; then
     exit 1
 fi
 
+# 1) 최신 이미지 pull (Docker Hub 기준)
+echo "Docker 이미지를 pull 합니다..."
+docker-compose pull worker
+
 # Docker Compose로 컨테이너 실행 (빌드 없이)
 echo "Docker Compose로 컨테이너를 시작합니다..."
-docker-compose up -d
+docker-compose up -d worker
 
 # 컨테이너 시작 확인 (헬스체크 기반)
 echo "컨테이너 시작 대기 중..."

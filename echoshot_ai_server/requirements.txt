@@ -49,7 +49,7 @@ realesrgan==0.3.0
 
 # 필수 의존성
 opencv-python>=4.8.0
-opencv-contrib-python>=4.8.0  # DNN Super Resolution 모듈
+# opencv-contrib-python>=4.8.0  # DNN Super Resolution 모듈
 numpy>=1.26,<2.0  # opencv-python과 gfpgan 호환성을 위한 범위
 # torch는 Dockerfile에서 CUDA 버전으로 설치됨
 
