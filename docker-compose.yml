@@ -8,7 +8,7 @@ services:
     #   args:
     #     BUILD_FOR: ${BUILD_FOR:-cpu}
     #     CUDA_VERSION: ${CUDA_VERSION:-cu121}
-    image: ${DOCKER_IMAGE:echoshot/echoshot-worker:latest}
+    image: ${DOCKER_IMAGE:-echoshot/echoshot-worker:latest}
     container_name: echoshot-worker
     restart: unless-stopped
     env_file:
