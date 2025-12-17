@@ -1,7 +1,7 @@
 # 멀티 스테이지 빌드를 사용한 최적화된 Dockerfile
 
 # Stage 1: 빌드 스테이지
-FROM python:3.10-slim as builder
+FROM python:3.10-slim AS builder
 
 # 빌드 인자 정의 (기본값: CPU)
 ARG BUILD_FOR=cpu
@@ -54,6 +54,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxext6 \
     libxrender-dev \
     libgomp1 \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # 비root 사용자 생성
@@ -70,13 +71,18 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 
 # 애플리케이션 코드 복사
 COPY echoshot_ai_server/ /app/echoshot_ai_server/
-COPY weights/ /app/weights/
 
-# 모델 가중치 디렉토리 생성 (없는 경우)
-RUN mkdir -p /app/echoshot_ai_server/tasks/weights && \
-    if [ -d /app/weights ]; then \
-        cp -r /app/weights/* /app/echoshot_ai_server/tasks/weights/ 2>/dev/null || true; \
-    fi
+# 모델 가중치 디렉토리 생성 및 모델 파일 다운로드
+RUN mkdir -p /app/weights /app/echoshot_ai_server/tasks/weights && \
+    echo "Downloading model files..." && \
+    curl -L -o /app/weights/FSRCNN_x2.pb \
+        https://github.com/Saafke/FSRCNN_Tensorflow/raw/master/models/FSRCNN_x2.pb && \
+    curl -L -o /app/weights/EDSR_x2.pb \
+        https://github.com/Saafke/EDSR_Tensorflow/raw/master/models/EDSR_x2.pb && \
+    curl -L -o /app/weights/RealESRGAN_x4plus.pth \
+        https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth && \
+    cp -r /app/weights/* /app/echoshot_ai_server/tasks/weights/ && \
+    echo "Model files downloaded successfully"
 
 # 소유권 변경
 RUN chown -R worker:worker /app
