@@ -4,9 +4,9 @@ from typing import List
 import signal
 import time
 import logging
-from echoshot_ai_server.core.sqs_client import SQSClient
-from echoshot_ai_server.domain.job import JobStatus
-from echoshot_ai_server.services.job_processor import JobProcessor
+from ..core.sqs_client import SQSClient
+from ..domain.job import JobStatus
+from .job_processor import JobProcessor
 
 
 logger = logging.getLogger(__name__)

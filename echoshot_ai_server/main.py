@@ -1,13 +1,13 @@
 import sys
 import logging
 from pathlib import Path
-from config.settings import get_settings
-from config.logging_config import setup_logging
-from core.sqs_client import SQSClient
-from core.s3_client import S3Client
-from core.api_client import SpringAPIClient
-from services.job_processor import JobProcessor
-from services.worker_pool import WorkerPool
+from .config.settings import get_settings
+from .config.logging_config import setup_logging
+from .core.sqs_client import SQSClient
+from .core.s3_client import S3Client
+from .core.api_client import SpringAPIClient
+from .services.job_processor import JobProcessor
+from .services.worker_pool import WorkerPool
 
 logger = logging.getLogger(__name__)
 

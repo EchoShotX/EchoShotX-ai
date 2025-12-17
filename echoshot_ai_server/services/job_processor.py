@@ -1,9 +1,9 @@
 from pathlib import Path
 import logging
-from echoshot_ai_server.core.api_client import SpringAPIClient
-from echoshot_ai_server.core.s3_client import S3Client
-from echoshot_ai_server.domain.job import Job, TaskResult, JobStatus
-from echoshot_ai_server.tasks.task_factory import TaskFactory
+from ..core.api_client import SpringAPIClient
+from ..core.s3_client import S3Client
+from ..domain.job import Job, TaskResult, JobStatus
+from ..tasks.task_factory import TaskFactory
 
 logger = logging.getLogger(__name__)
 

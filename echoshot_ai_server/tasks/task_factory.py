@@ -1,6 +1,6 @@
 from typing import Type
 from ..domain.job import *
-from base import *
+from .base import *
 
 class TaskFactory:
     """Task Factory Pattern"""
