@@ -44,6 +44,8 @@ class WorkerPool:
     def _polling_loop(self) -> None:
         """SQS 메시지 polling"""
         logger.info("Starting SQS polling loop")
+        
+        no_message_count = 0  # 메시지가 없을 때 카운터 (로그 스팸 방지)
 
         while not self.should_stop.is_set():
             try:
@@ -52,17 +54,25 @@ class WorkerPool:
                     max_messages=self.worker_count
                 )
 
-                for job in jobs:
-                    # Job Queue에 추가
-                    self.job_queue.put(job, timeout=5)
-                    logger.info(f"Job {job.job_id} queued")
-
-                # 메시지가 없으면 짧은 대기
-                if not jobs:
+                if jobs:
+                    logger.info(f"Polling result: received {len(jobs)} job(s) from SQS")
+                    no_message_count = 0  # 카운터 리셋
+                    
+                    for job in jobs:
+                        # Job Queue에 추가
+                        self.job_queue.put(job, timeout=5)
+                        logger.info(f"Job {job.job_id} queued (task_type={job.task_type}, source_s3_key={job.source_s3_key})")
+                else:
+                    # 메시지가 없을 때 주기적으로 로그 (60초마다)
+                    no_message_count += 1
+                    if no_message_count >= 60:  # 약 60초마다 로그 (1초 sleep * 60)
+                        logger.debug("No messages in SQS queue, continuing to poll...")
+                        no_message_count = 0
                     time.sleep(1)
 
             except Exception as e:
                 logger.error(f"Polling error: {e}", exc_info=True)
+                no_message_count = 0  # 에러 시 카운터 리셋
                 time.sleep(5)
 
         logger.info("Polling loop stopped")
