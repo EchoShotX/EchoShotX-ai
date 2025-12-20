@@ -22,6 +22,7 @@ class SQSClient:
                          visibility_timeout: int = 300) -> List[Job]:
         """SQS 메시지 수신 및 Job 객체로 변환"""
         try:
+            logger.debug(f"Polling SQS queue: {self.queue_url} (max_messages={max_messages})")
             response = self.sqs_client.receive_message(
                 QueueUrl=self.queue_url,
                 MaxNumberOfMessages=max_messages,
@@ -30,6 +31,13 @@ class SQSClient:
             )
 
             messages = response.get('Messages', [])
+            message_count = len(messages)
+            
+            if message_count > 0:
+                logger.info(f"Received {message_count} message(s) from SQS queue")
+            else:
+                logger.debug("No messages received from SQS queue (long polling timeout)")
+            
             jobs = []
 
             for msg in messages:
@@ -44,15 +52,19 @@ class SQSClient:
                         receipt_handle=msg['ReceiptHandle']
                     )
                     jobs.append(job)
+                    logger.debug(f"Successfully converted message to Job: {job.job_id} (task_type={job.task_type})")
                 except (KeyError, ValueError, json.JSONDecodeError) as e:
-                    logger.error(f"Invalid message format: {e}")
+                    logger.error(f"Invalid message format: {e}, message_id={msg.get('MessageId', 'unknown')}")
                     # 잘못된 메시지 삭제
                     self.delete_message(msg['ReceiptHandle'])
+
+            if jobs:
+                logger.info(f"Successfully converted {len(jobs)} message(s) to Job objects")
 
             return jobs
 
         except ClientError as e:
-            logger.error(f"Failed to receive messages: {e}")
+            logger.error(f"Failed to receive messages from SQS: {e}")
             return []
 
     def delete_message(self, receipt_handle: str) -> None:
