@@ -118,11 +118,18 @@ class VideoUpscaleTester:
 
     def select_device(self) -> str:
         """디바이스 선택"""
-        import torch
+        import cv2
+        
+        # OpenCV CUDA 지원 확인
+        cuda_available = False
+        try:
+            cuda_count = cv2.cuda.getCudaEnabledDeviceCount()
+            cuda_available = cuda_count > 0
+        except Exception:
+            cuda_available = False
 
-        if torch.cuda.is_available():
-            gpu_name = torch.cuda.get_device_name(0)
-            print(f"\n🎮 GPU 감지: {gpu_name}")
+        if cuda_available:
+            print(f"\n🎮 GPU 감지: CUDA 디바이스 {cuda_count}개 사용 가능")
             choice = input("GPU 사용? (y/n) [기본: y]: ").strip().lower() or "y"
             return "gpu" if choice == "y" else "cpu"
         else:
