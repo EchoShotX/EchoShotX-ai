@@ -91,24 +91,35 @@ jobs:
           submodules: recursive
           token: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
 
-       # 1) Docker Hub 로그인
+      # 1) Docker Hub 로그인
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # 2) Docker 이미지 빌드 (CPU 전용)
-      - name: Build Docker image
+      # 2) 베이스 이미지 Pull (OpenCV CUDA 포함)
+      - name: Pull base image
         run: |
-          docker build \
-            --build-arg BUILD_FOR=cpu \
-            --build-arg CUDA_VERSION=cu121 \
-            -t ${{ secrets.DOCKERHUB_USERNAME }}/echoshot-worker:latest .
+          echo "베이스 이미지를 pull합니다..."
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/opencv-cuda-t4:4.10.0 || echo "베이스 이미지가 없습니다. 먼저 빌드해야 합니다."
 
-      # 3) Docker Hub로 푸시
-      - name: Push Docker image
+      # 3) GPU 버전 Docker 이미지 빌드 (베이스 이미지 사용)
+      - name: Build GPU Docker image
         run: |
+          echo "GPU 버전 애플리케이션 이미지를 빌드합니다..."
+          docker build \
+            --build-arg DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }} \
+            --build-arg OPENCV_VERSION=4.10.0 \
+            -t ${{ secrets.DOCKERHUB_USERNAME }}/echoshot-worker:gpu-fsrcnn-t4 \
+            -t ${{ secrets.DOCKERHUB_USERNAME }}/echoshot-worker:latest \
+            .
+
+      # 4) Docker Hub로 푸시
+      - name: Push Docker images
+        run: |
+          echo "이미지를 Docker Hub에 푸시합니다..."
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/echoshot-worker:gpu-fsrcnn-t4
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/echoshot-worker:latest
       
       - name: Configure AWS credentials

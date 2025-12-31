@@ -11,6 +11,11 @@ def setup_logging(log_level: str = "INFO"):
         "[%(filename)s:%(lineno)d] - %(message)s"
     )
 
+    # 로그 디렉토리 생성 (없으면 자동 생성)
+    log_dir = Path("logs")
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / "video_ai_server.log"
+
     # 루트 로거 설정
     logging.basicConfig(
         level=getattr(logging, log_level.upper()),
@@ -18,7 +23,7 @@ def setup_logging(log_level: str = "INFO"):
         handlers=[
             logging.StreamHandler(sys.stdout),
             logging.FileHandler(
-                Path("logs") / "video_ai_server.log",
+                log_file,
                 encoding='utf-8'
             )
         ]
