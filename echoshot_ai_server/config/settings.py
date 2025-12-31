@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     # ===============================
     SPRING_API_BASE_URL: str = "http://localhost:8080"  # Spring 서버의 기본 URL (개발 환경 기본값)
     SPRING_API_TIMEOUT: int = 30  # API 요청 타임아웃 (초 단위)
+    CALLBACK_URL: str = ""  # 작업 완료 후 콜백을 받을 고정 URL (.env에서 설정)
 
     # ===============================
     # Worker 설정
