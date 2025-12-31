@@ -12,6 +12,7 @@ EchoShotX AI Server는 Spring 백엔드로부터 영상 처리 요청을 받아 
 - AWS SQS 기반 작업 큐 관리
 - S3 기반 영상 파일 처리
 - 작업 완료 시 HTTP 콜백 시스템
+- 베이스 이미지 분리 배포로 빠른 빌드 (2시간 → 10-15분)
 
 ## 시스템 아키텍처
 
@@ -34,3 +35,16 @@ EchoShotX AI Server는 Spring 백엔드로부터 영상 처리 요청을 받아 
                               │
                               └──> 클라이언트 (WebSocket 알림)
 ```
+
+## 배포
+
+### 베이스 이미지 빌드 (초기 설정, 한 번만)
+
+베이스 이미지는 OpenCV CUDA 빌드가 포함된 이미지로, OpenCV 업데이트 시에만 재빌드하면 됩니다.
+
+```bash
+# EC2 GPU 인스턴스에서 실행
+./scripts/build-base-image.sh
+```
+
+자세한 배포 가이드는 [docs/deployment/deployment-plan.md](docs/deployment/deployment-plan.md)를 참조하세요.

@@ -16,13 +16,13 @@ class Settings(BaseSettings):
     # AWS 설정
     # ===============================
     AWS_REGION: str = "ap-northeast-2"  # AWS 리전 (기본값 설정)
-    SQS_QUEUE_URL: str  # SQS 큐 URL
-    S3_BUCKET_NAME: str  # S3 버킷 이름
+    SQS_QUEUE_URL: str = ""  # SQS 큐 URL (개발 환경에서는 선택적)
+    S3_BUCKET_NAME: str = ""  # S3 버킷 이름 (개발 환경에서는 선택적)
 
     # ===============================
     # Spring API 설정
     # ===============================
-    SPRING_API_BASE_URL: str  # Spring 서버의 기본 URL
+    SPRING_API_BASE_URL: str = "http://localhost:8080"  # Spring 서버의 기본 URL (개발 환경 기본값)
     SPRING_API_TIMEOUT: int = 30  # API 요청 타임아웃 (초 단위)
 
     # ===============================
@@ -35,22 +35,28 @@ class Settings(BaseSettings):
     # ===============================
     # 비디오 처리 설정
     # ===============================
-    TEMP_DIR: Path = Path("/tmp/video_processing")  # 임시 비디오 저장 디렉토리
+    TEMP_DIR: Path = Path(os.getenv("TEMP", "/tmp")) / "video_processing"  # 임시 비디오 저장 디렉토리 (Windows/Linux 호환)
     MAX_VIDEO_SIZE_MB: int = 500  # 업로드 가능한 최대 비디오 크기(MB)
 
     # ===============================
     # 로깅 설정
     # ===============================
     LOG_LEVEL: str = "INFO"  # 로그 레벨 (DEBUG, INFO, WARNING, ERROR 등)
+    
+    # ===============================
+    # 환경 설정
+    # ===============================
+    APP_ENV: str = "dev"  # 환경 구분 (dev, prod)
 
     class Config:
         """
         Pydantic Settings Config
-        - env_file: .env 파일 경로 지정
+        - env_file: .env 파일 경로 지정 (여러 파일 시도)
         - case_sensitive: 환경 변수 대소문자 구분 여부
-        - 프로덕션 환경만 사용 (.env.prod)
+        - 개발 환경: .env 파일 우선 사용
+        - 프로덕션 환경: .env.prod 파일 사용
         """
-        env_file = ".env.prod"  # 프로덕션 환경만 사용
+        env_file = [".env", ".env.prod"]  # .env 파일 우선, 없으면 .env.prod 시도
         case_sensitive = True
 
 
