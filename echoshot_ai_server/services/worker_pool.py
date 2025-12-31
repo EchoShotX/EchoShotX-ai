@@ -1,5 +1,6 @@
 import multiprocessing as mp
 from multiprocessing import Process, Queue
+from queue import Empty
 from typing import List
 import signal
 import time
@@ -107,7 +108,7 @@ class WorkerPool:
                         self.sqs_client.delete_message(job.receipt_handle)
                         logger.error(f"Job {job.job_id} exceeded max retries")
 
-            except Queue.Empty:
+            except Empty:
                 continue
             except Exception as e:
                 logger.error(f"Worker {worker_id} error: {e}", exc_info=True)
