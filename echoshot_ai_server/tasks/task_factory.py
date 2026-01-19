@@ -8,15 +8,16 @@ from typing import Type, Optional
 from pathlib import Path
 from ..domain.job import Job, TaskType, Dict
 from .base import BaseTask
+from .upscale_task import UpscaleTask
 from ..core.redis_client import RedisClient
 
 
 class TaskFactory:
     """Task Factory Pattern"""
 
-    """ 추가 가능 """
+    """ 등록된 Task 타입 """
     _task_map: Dict[TaskType, Type[BaseTask]] = {
-        # TaskType.UPSCALE: UpscaleTask,
+        TaskType.UPSCALE: UpscaleTask,
         # TaskType.SUBTITLE: SubtitleTask,
         # TaskType.AUDIO_EXTRACT: AudioExtractTask,
     }

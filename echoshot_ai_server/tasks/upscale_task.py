@@ -6,6 +6,8 @@ import subprocess
 import logging
 from dataclasses import dataclass
 
+from .base import BaseTask
+
 logger = logging.getLogger(__name__)
 
 
@@ -323,24 +325,30 @@ class OptimizedUpscaleTask:
         return cmd
 
 
-# BaseTask 통합용
-class UpscaleTask:
-    """BaseTask 인터페이스 구현"""
-
-    def __init__(self, job, temp_dir: Path, progress_callback: Optional[Callable[[float, str], None]] = None):
-        self.job = job
-        self.temp_dir = temp_dir
-        self.input_path = None  # BaseTask에서 설정
-        self.output_path = None
-        self.progress_callback = progress_callback
+# BaseTask 통합
+class UpscaleTask(BaseTask):
+    """
+    비디오 업스케일링 Task
+    
+    BaseTask를 상속받아 진행률 보고가 자동으로 처리됩니다.
+    _process() 메서드에서 실제 업스케일 작업을 수행합니다.
+    """
 
     def _process(self) -> Path:
-        """업스케일 실행"""
+        """
+        업스케일 실행
+        
+        BaseTask의 input_path에서 파일을 읽어 업스케일 후 출력 파일 경로 반환
+        """
         scale = self.job.parameters.get("scale_factor", 2)
         device = self.job.parameters.get("device", "cpu")
         profile = self.job.parameters.get("model_profile", "balanced")
 
         output_file = self.temp_dir / f"{self.job.job_id}_upscaled.mp4"
+
+        # 진행률 콜백 (BaseTask의 report_progress 사용)
+        def progress_callback(percentage: float, message: str) -> None:
+            self.report_progress(percentage, message)
 
         task = OptimizedUpscaleTask(self.temp_dir)
         task.process(
@@ -349,7 +357,7 @@ class UpscaleTask:
             scale, 
             device, 
             profile,
-            progress_callback=self.progress_callback
+            progress_callback=progress_callback
         )
 
         return output_file
