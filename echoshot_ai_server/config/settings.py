@@ -34,6 +34,16 @@ class Settings(BaseSettings):
     VISIBILITY_TIMEOUT: int = 300  # SQS 메시지 가시성 타임아웃 (초 단위)
 
     # ===============================
+    # Redis 설정 (진행률 Pub/Sub용)
+    # ===============================
+    REDIS_HOST: str = "localhost"  # Redis 서버 호스트 (EC2-B의 Redis)
+    REDIS_PORT: int = 6379  # Redis 서버 포트
+    REDIS_PASSWORD: str = ""  # Redis 비밀번호 (선택적)
+    REDIS_DB: int = 0  # Redis 데이터베이스 번호
+    REDIS_SOCKET_TIMEOUT: float = 5.0  # 소켓 타임아웃 (초)
+    REDIS_RETRY_ON_TIMEOUT: bool = True  # 타임아웃 시 재시도 여부
+
+    # ===============================
     # 비디오 처리 설정
     # ===============================
     TEMP_DIR: Path = Path(os.getenv("TEMP", "/tmp")) / "video_processing"  # 임시 비디오 저장 디렉토리 (Windows/Linux 호환)
