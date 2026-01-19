@@ -2,9 +2,13 @@ version: '3.8'
 
 services:
   worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
+    #   args:
+    #     BUILD_FOR: ${BUILD_FOR:-cpu}
+    #     CUDA_VERSION: ${CUDA_VERSION:-cu121}
+    image: ${DOCKER_IMAGE:-echoshot/echoshot-worker:latest}
     container_name: echoshot-worker
     restart: unless-stopped
     env_file:
@@ -15,13 +19,13 @@ services:
     networks:
       - echoshot-network
     # GPU 지원 (EC2 GPU 인스턴스에서 사용)
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
     logging:
       driver: "json-file"
       options:
@@ -30,5 +34,5 @@ services:
 
 networks:
   echoshot-network:
-    external: true
+    driver: bridge
 

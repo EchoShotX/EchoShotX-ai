@@ -27,30 +27,28 @@ class Job:
     task_type: TaskType
     source_s3_key: str
     parameters: Dict[str, Any]
-    callback_url: str
     receipt_handle: str
-    status: JobStatus.QUEUED
+    status: JobStatus = JobStatus.QUEUED
     retry_count: int = 0
     priority: int = 0
     submitted_at: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
 
-
     def to_dict(self) -> Dict[str, Any]:
         """딕셔너리로 변환"""
-        return {
-            "version": self.version,
+        result = {
             "job_id": self.job_id,
-            "member_id": self.member_id,
+            "user_id": self.user_id,
             "task_type": self.task_type.value,
             "source_s3_key": self.source_s3_key,
             "parameters": self.parameters,
-            "callback_url": self.callback_url,
             "priority": self.priority,
             "retry_count": self.retry_count,
-            "submitted_at": self.submitted_at.isoformat(),
             "metadata": self.metadata or {},
         }
+        if self.submitted_at:
+            result["submitted_at"] = self.submitted_at
+        return result
 
 
 @dataclass
@@ -61,6 +59,7 @@ class TaskResult:
     output_s3_key: Optional[str] = None
     error_message: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
+    processed_file_size_bytes: Optional[int] = None  # 처리된 파일 크기 (바이트)
 
     def to_dict(self) -> Dict[str, Any]:
         """딕셔너리로 변환"""
@@ -69,5 +68,6 @@ class TaskResult:
             "status": self.status.value,
             "output_s3_key": self.output_s3_key,
             "error_message": self.error_message,
-            "metadata": self.metadata or {}
+            "metadata": self.metadata or {},
+            "processed_file_size_bytes": self.processed_file_size_bytes
         }

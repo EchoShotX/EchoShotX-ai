@@ -1,5 +1,4 @@
 import cv2
-import torch
 import numpy as np
 from pathlib import Path
 from typing import Dict, Any, Optional, List
@@ -65,7 +64,15 @@ class VideoUpscaler:
         """
         self.profile = MODEL_PROFILES[model_profile]
         self.device = device
-        self.use_gpu = device == "gpu" and torch.cuda.is_available()
+        
+        # OpenCV CUDA 지원 확인
+        cuda_available = False
+        try:
+            cuda_available = cv2.cuda.getCudaEnabledDeviceCount() > 0
+        except Exception as e:
+            logger.debug(f"CUDA 체크 실패: {e}")
+        
+        self.use_gpu = device == "gpu" and cuda_available
 
         if device == "gpu" and not self.use_gpu:
             logger.warning("GPU 사용 불가, CPU로 전환")
@@ -79,13 +86,14 @@ class VideoUpscaler:
         )
 
     def _load_model(self):
-        """모델 로드 (OpenCV DNN 또는 PyTorch)"""
+        """모델 로드 (OpenCV DNN)"""
         if self.profile.name == "FSRCNN":
             return self._load_fsrcnn()
         elif self.profile.name == "EDSR-base":
             return self._load_edsr()
-        else:  # RealESRGAN
-            return self._load_realesrgan()
+        else:
+            logger.warning(f"지원하지 않는 모델: {self.profile.name}, FSRCNN으로 대체")
+            return self._load_fsrcnn()
 
     def _load_fsrcnn(self):
         """FSRCNN (초고속, OpenCV 내장)"""
@@ -121,32 +129,6 @@ class VideoUpscaler:
 
         return sr
 
-    def _load_realesrgan(self):
-        """RealESRGAN (최고품질, 가장 느림)"""
-        try:
-            from realesrgan import RealESRGANer
-            from basicsr.archs.rrdbnet_arch import RRDBNet
-
-            model = RRDBNet(
-                num_in_ch=3, num_out_ch=3, num_feat=64,
-                num_block=23, num_grow_ch=32, scale=4
-            )
-
-            upsampler = RealESRGANer(
-                scale=4,
-                model_path='weights/RealESRGAN_x4plus.pth',
-                model=model,
-                tile=256 if self.use_gpu else 128,
-                tile_pad=10,
-                pre_pad=0,
-                half=self.use_gpu,
-                device='cuda' if self.use_gpu else 'cpu'
-            )
-            return upsampler
-
-        except ImportError:
-            logger.error("RealESRGAN 미설치, EDSR로 대체")
-            return self._load_edsr()
 
     def upscale_frame(self, frame: np.ndarray, scale: int = 2) -> np.ndarray:
         """단일 프레임 업스케일"""
@@ -156,14 +138,8 @@ class VideoUpscaler:
             return cv2.resize(frame, (w * scale, h * scale),
                               interpolation=cv2.INTER_CUBIC)
 
-        if self.profile.name in ["FSRCNN", "EDSR-base"]:
-            # OpenCV DNN 모델
-            return self.model.upsample(frame)
-        else:
-            # RealESRGAN
-            img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            upscaled_rgb, _ = self.model.enhance(img_rgb, outscale=scale)
-            return cv2.cvtColor(upscaled_rgb, cv2.COLOR_RGB2BGR)
+        # OpenCV DNN 모델 (FSRCNN 또는 EDSR)
+        return self.model.upsample(frame)
 
 
 class OptimizedUpscaleTask:

@@ -33,13 +33,19 @@ class BaseTask(ABC):
             # 4. 메타데이터 생성
             metadata = self._generate_metadata()
 
+            # 5. 처리된 파일 크기 계산
+            processed_file_size_bytes = None
+            if self.output_path and self.output_path.exists():
+                processed_file_size_bytes = self.output_path.stat().st_size
+
             logger.info(f"Task {self.job.job_id} completed successfully")
 
             return TaskResult(
                 job_id=self.job.job_id,
                 status=JobStatus.COMPLETED,
                 output_s3_key=output_key,
-                metadata=metadata
+                metadata=metadata,
+                processed_file_size_bytes=processed_file_size_bytes
             )
 
         except Exception as e:

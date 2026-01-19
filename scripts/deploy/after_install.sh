@@ -67,6 +67,10 @@ mkdir -p "$APP_DIR/data"
 mkdir -p "/tmp/video_processing"
 chmod 755 "/tmp/video_processing"
 
+# 로그 디렉토리 권한 설정 (Docker 컨테이너의 worker 사용자 UID 1000)
+chown -R 1000:1000 "$APP_DIR/logs"
+chmod 755 "$APP_DIR/logs"
+
 # 모델 가중치 디렉토리 확인
 WEIGHTS_DIR="$APP_DIR/weights"
 if [ ! -d "$WEIGHTS_DIR" ]; then
@@ -80,14 +84,10 @@ if [ -z "$(ls -A $WEIGHTS_DIR 2>/dev/null)" ]; then
     echo "Docker 이미지에 포함되어 있거나, 런타임에 다운로드해야 합니다."
 fi
 
-# Docker 네트워크 생성 (필요한 경우)
-if ! docker network ls | grep -q echoshot-network; then
-    echo "Docker 네트워크를 생성합니다..."
-    docker network create echoshot-network || true
-fi
-
 # 파일 권한 설정
 chown -R root:root "$APP_DIR"
+# 로그 디렉토리는 worker 사용자 권한 유지 (docker-compose 볼륨 마운트용)
+chown -R 1000:1000 "$APP_DIR/logs"
 chmod 755 "$APP_DIR"
 
 echo "=== AfterInstall 완료 ==="

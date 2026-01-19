@@ -1,9 +1,9 @@
 from pathlib import Path
 import logging
-from echoshot_ai_server.core.api_client import SpringAPIClient
-from echoshot_ai_server.core.s3_client import S3Client
-from echoshot_ai_server.domain.job import Job, TaskResult, JobStatus
-from echoshot_ai_server.tasks.task_factory import TaskFactory
+from ..core.api_client import SpringAPIClient
+from ..core.s3_client import S3Client
+from ..domain.job import Job, TaskResult, JobStatus
+from ..tasks.task_factory import TaskFactory
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ class JobProcessor:
             result = task.execute()
 
             # 3. 콜백 전송
-            self._send_callback_with_retry(result)
+            self._send_callback_with_retry(result, job)
 
             return result
 
@@ -45,19 +45,19 @@ class JobProcessor:
 
             # 실패 콜백 전송 시도
             try:
-                self._send_callback_with_retry(result)
+                self._send_callback_with_retry(result, job)
             except Exception as callback_error:
                 logger.error(f"Failed to send failure callback: {callback_error}")
 
             return result
 
-    def _send_callback_with_retry(self, result: TaskResult) -> None:
+    def _send_callback_with_retry(self, result: TaskResult, job: Job) -> None:
         """재시도 로직이 포함된 콜백 전송"""
         for attempt in range(self.max_retries):
             try:
-                self.api_client.send_callback(result)
+                self.api_client.send_callback(result, job)
                 return
             except Exception as e:
                 if attempt == self.max_retries - 1:
                     raise
-                logger.warning(f"Callback retry {attempt + 1}/{self.max_retries}")
+                logger.warning(f"Callback retry {attempt + 1}/{self.max_retries}: {e}")

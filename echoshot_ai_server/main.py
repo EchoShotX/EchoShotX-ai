@@ -1,13 +1,13 @@
 import sys
 import logging
 from pathlib import Path
-from config.settings import get_settings
-from config.logging_config import setup_logging
-from core.sqs_client import SQSClient
-from core.s3_client import S3Client
-from core.api_client import SpringAPIClient
-from services.job_processor import JobProcessor
-from services.worker_pool import WorkerPool
+from echoshot_ai_server.config.settings import get_settings
+from echoshot_ai_server.config.logging_config import setup_logging
+from echoshot_ai_server.core.sqs_client import SQSClient
+from echoshot_ai_server.core.s3_client import S3Client
+from echoshot_ai_server.core.api_client import SpringAPIClient
+from echoshot_ai_server.services.job_processor import JobProcessor
+from echoshot_ai_server.services.worker_pool import WorkerPool
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ def main():
     # 로깅 설정
     setup_logging(settings.LOG_LEVEL)
     logger.info("Starting Video AI Server")
-    logger.info(f"Configuration: {settings.dict()}")
+    logger.info(f"Configuration: {settings.model_dump()}")
 
     # 임시 디렉토리 생성
     temp_dir = Path(settings.TEMP_DIR)

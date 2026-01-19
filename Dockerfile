@@ -1,82 +1,51 @@
-# 멀티 스테이지 빌드를 사용한 최적화된 Dockerfile
+# FSRCNN GPU 업스케일 전용 Dockerfile
+# 베이스 이미지를 사용하여 빌드 시간을 단축합니다.
+# 베이스 이미지: echoshot/opencv-cuda-t4:4.10.0 (Docker Hub에 사전 빌드됨)
 
-# Stage 1: 빌드 스테이지
-FROM python:3.10-slim as builder
+# =========================
+# 베이스 이미지 사용
+# =========================
+# 베이스 이미지는 OpenCV CUDA 빌드가 포함되어 있습니다.
+# 베이스 이미지 빌드 방법은 scripts/build-base-image.sh 참조
+ARG DOCKERHUB_USERNAME=echoshot
+ARG OPENCV_VERSION=4.10.0
+FROM ${DOCKERHUB_USERNAME}/opencv-cuda-t4:${OPENCV_VERSION}
 
-# 빌드 의존성 설치
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    git \
-    && rm -rf /var/lib/apt/lists/*
-
-# 작업 디렉토리 설정
-WORKDIR /build
-
-# Python 의존성 복사 및 설치
-COPY echoshot_ai_server/requirements.txt /build/requirements.txt
-
-# PyTorch 및 의존성 설치 (CUDA 지원)
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir \
-    torch==2.4.1+cu121 \
-    torchvision==0.19.1+cu121 \
-    torchaudio==2.4.1+cu121 \
-    --index-url https://download.pytorch.org/whl/cu121
-
-# 나머지 의존성 설치
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Stage 2: 런타임 스테이지
-FROM python:3.10-slim
-
-# 런타임 의존성 설치
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg \
-    libgl1-mesa-glx \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender-dev \
-    libgomp1 \
-    && rm -rf /var/lib/apt/lists/*
-
-# 비root 사용자 생성
-RUN useradd -m -u 1000 worker && \
-    mkdir -p /app /tmp/video_processing && \
-    chown -R worker:worker /app /tmp/video_processing
-
-# 작업 디렉토리 설정
+# =========================
+# App
+# =========================
 WORKDIR /app
 
-# 빌드 스테이지에서 Python 패키지 복사
-COPY --from=builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
+COPY echoshot_ai_server/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
 
-# 애플리케이션 코드 복사
 COPY echoshot_ai_server/ /app/echoshot_ai_server/
-COPY weights/ /app/weights/
 
-# 모델 가중치 디렉토리 생성 (없는 경우)
-RUN mkdir -p /app/echoshot_ai_server/tasks/weights && \
-    if [ -d /app/weights ]; then \
-        cp -r /app/weights/* /app/echoshot_ai_server/tasks/weights/ 2>/dev/null || true; \
-    fi
+# =========================
+# Model weights (FSRCNN)
+# =========================
+RUN mkdir -p /app/weights /app/echoshot_ai_server/tasks/weights && \
+    echo "Downloading FSRCNN model file..." && \
+    curl -L -o /app/weights/FSRCNN_x2.pb \
+      https://github.com/Saafke/FSRCNN_Tensorflow/raw/master/models/FSRCNN_x2.pb && \
+    cp /app/weights/FSRCNN_x2.pb /app/echoshot_ai_server/tasks/weights/ && \
+    echo "FSRCNN model file downloaded successfully"
 
-# 소유권 변경
-RUN chown -R worker:worker /app
+# =========================
+# Non-root user
+# =========================
+RUN useradd -m -u 1000 worker && \
+    mkdir -p /tmp/video_processing && \
+    chown -R worker:worker /app /tmp/video_processing
 
-# 비root 사용자로 전환
 USER worker
 
-# 환경 변수 설정
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     TEMP_DIR=/tmp/video_processing \
-    APP_ENV=prod
+    APP_ENV=prod \
+    PYTHONPATH=/app
 
-# 임시 디렉토리 설정
 VOLUME ["/tmp/video_processing"]
 
-# 애플리케이션 실행
 ENTRYPOINT ["python", "-m", "echoshot_ai_server.main"]
-

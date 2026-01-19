@@ -58,13 +58,15 @@ if ! docker exec echoshot-worker ps aux | grep -q "[p]ython.*main"; then
     exit 1
 fi
 
-# Redis 연결 테스트 (옵션)
+# Redis 연결 테스트 (옵션 - 실패해도 계속 진행)
 # REDIS_HOST 환경 변수가 있으면 테스트
 if [ -f "$APP_DIR/.env.prod" ]; then
     source "$APP_DIR/.env.prod"
     if [ -n "$REDIS_HOST" ]; then
         if ! docker exec echoshot-worker python -c "import redis; r = redis.Redis(host='$REDIS_HOST', port=${REDIS_PORT:-6379}, socket_connect_timeout=5); r.ping()" 2>/dev/null; then
-            echo "WARNING: Redis 연결에 실패했습니다. (선택적)"
+            echo "WARNING: Redis 연결에 실패했습니다. (선택적이므로 계속 진행)"
+        else
+            echo "Redis 연결 확인 완료."
         fi
     fi
 fi
