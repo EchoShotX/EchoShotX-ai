@@ -157,7 +157,9 @@ class RedisClient:
         progress: float,
         status: str = "PROCESSING",
         message: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        member_id: Optional[str] = None,
+        video_id: Optional[str] = None
     ) -> bool:
         """
         작업 진행률을 Redis Pub/Sub으로 발행
@@ -170,6 +172,8 @@ class RedisClient:
             status: 작업 상태 (PROCESSING, COMPLETED, FAILED 등)
             message: 추가 메시지 (선택적)
             metadata: 추가 메타데이터 (선택적)
+            member_id: 사용자 ID (선택적, Spring에서 사용자별 전송용)
+            video_id: 비디오 ID (선택적, 클라이언트에서 식별용)
             
         Returns:
             발행 성공 여부
@@ -182,6 +186,14 @@ class RedisClient:
             "status": status,
             "timestamp": datetime.utcnow().isoformat() + "Z"
         }
+        
+        # 사용자 ID 추가
+        if member_id:
+            payload["memberId"] = member_id
+            
+        # 비디오 ID 추가
+        if video_id:
+            payload["videoId"] = video_id
         
         if message:
             payload["message"] = message

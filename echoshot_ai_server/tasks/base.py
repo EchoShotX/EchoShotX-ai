@@ -39,9 +39,16 @@ class BaseTask(ABC):
         self.input_path: Optional[Path] = None
         self.output_path: Optional[Path] = None
         
-        # 진행률 보고 초기화
+        # Job 메타데이터에서 video_id 추출
+        video_id = None
+        if job.metadata and "video_id" in job.metadata:
+            video_id = str(job.metadata["video_id"])
+        
+        # 진행률 보고 초기화 (user_id, video_id 포함)
         self.progress = ProgressReporter(
             job_id=str(job.job_id),
+            member_id=str(job.user_id) if job.user_id else None,
+            video_id=video_id,
             redis_client=redis_client
         )
 

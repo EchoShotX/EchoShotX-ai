@@ -43,6 +43,8 @@ class ProgressReporter:
     def __init__(
         self,
         job_id: str,
+        member_id: Optional[str] = None,
+        video_id: Optional[str] = None,
         redis_client: Optional[RedisClient] = None,
         report_interval: float = 5.0
     ):
@@ -51,10 +53,14 @@ class ProgressReporter:
         
         Args:
             job_id: 작업 ID
+            member_id: 사용자 ID (Spring에서 사용자별 전송용)
+            video_id: 비디오 ID (클라이언트에서 식별용)
             redis_client: Redis 클라이언트 (None이면 싱글톤 사용)
             report_interval: 최소 보고 간격 (초) - 너무 빈번한 업데이트 방지
         """
         self.job_id = job_id
+        self.member_id = member_id
+        self.video_id = video_id
         self._redis_client = redis_client
         self.report_interval = report_interval
         
@@ -62,7 +68,7 @@ class ProgressReporter:
         self._last_status: ProgressStatus = ProgressStatus.PENDING
         self._enabled: bool = True
         
-        logger.debug(f"ProgressReporter initialized for job {job_id}")
+        logger.debug(f"ProgressReporter initialized for job {job_id} (member={member_id}, video={video_id})")
     
     @property
     def redis_client(self) -> Optional[RedisClient]:
@@ -108,7 +114,9 @@ class ProgressReporter:
                 progress=progress,
                 status=status.value,
                 message=message,
-                metadata=metadata
+                metadata=metadata,
+                member_id=self.member_id,
+                video_id=self.video_id
             )
             
             if success:
