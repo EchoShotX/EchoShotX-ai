@@ -72,24 +72,40 @@ def parse_sqs_message_body(body: Dict[str, Any]) -> Dict[str, Any]:
         
     Returns:
         Job 생성에 필요한 필드들을 포함한 dict
+        
+    Raises:
+        ValueError: 필수 필드가 누락되거나 형식이 잘못된 경우
+        KeyError: 필드명이 잘못된 경우
     """
     # Spring 형식 (camelCase) 지원
     if "jobId" in body:
+        # 필수 필드 검증
+        required_fields = ["jobId", "s3Key", "memberId", "processingType"]
+        missing_fields = [field for field in required_fields if field not in body]
+        if missing_fields:
+            raise ValueError(f"Missing required fields: {missing_fields}")
+            
         # Spring JobMessage 형식
-        job_id = str(body["jobId"])
-        source_s3_key = body["s3Key"]
-        user_id = str(body["memberId"])
-        processing_type = body["processingType"]
-        task_type = map_processing_type(processing_type)
+        try:
+            job_id = str(body["jobId"])
+            source_s3_key = body["s3Key"]
+            user_id = str(body["memberId"])
+            processing_type = body["processingType"]
+            task_type = map_processing_type(processing_type)
+        except (KeyError, TypeError, ValueError) as e:
+            raise ValueError(f"Error parsing basic fields: {e}")
         
         # metadata 구성
         metadata = {}
-        if "videoId" in body:
-            metadata["video_id"] = str(body["videoId"])
-        if "videoMetadata" in body:
-            video_metadata = convert_video_metadata(body["videoMetadata"])
-            if video_metadata:
-                metadata["video_metadata"] = video_metadata
+        try:
+            if "videoId" in body and body["videoId"] is not None:
+                metadata["video_id"] = str(body["videoId"])
+            if "videoMetadata" in body and body["videoMetadata"] is not None:
+                video_metadata = convert_video_metadata(body["videoMetadata"])
+                if video_metadata:
+                    metadata["video_metadata"] = video_metadata
+        except (KeyError, TypeError, ValueError) as e:
+            logger.warning(f"Error parsing metadata (will continue without metadata): {e}")
         
         return {
             "job_id": job_id,
@@ -143,6 +159,11 @@ class SQSClient:
                 try:
                     body = json.loads(msg['Body'])
                     
+                    # 메시지 형식 미리 확인
+                    logger.debug(f"Raw SQS message body keys: {list(body.keys())}")
+                    if "jobId" in body:
+                        logger.debug(f"Detected Spring format message with fields: jobId={body.get('jobId')}, memberId={body.get('memberId')}, processingType={body.get('processingType')}")
+                    
                     # Spring 형식 또는 기존 형식으로 파싱
                     parsed = parse_sqs_message_body(body)
                     
@@ -159,7 +180,7 @@ class SQSClient:
                     jobs.append(job)
                     logger.debug(f"Successfully converted message to Job: {job.job_id} (task_type={job.task_type}, user_id={job.user_id})")
                 except (KeyError, ValueError, json.JSONDecodeError) as e:
-                    logger.error(f"Invalid message format: {e}, message_id={msg.get('MessageId', 'unknown')}, body={body if 'body' in locals() else 'N/A'}")
+                    logger.error(f"Invalid message format: {e}, message_id={msg.get('MessageId', 'unknown')}, body={str(body)[:500]}...")
                     # 잘못된 메시지 삭제
                     self.delete_message(msg['ReceiptHandle'])
 

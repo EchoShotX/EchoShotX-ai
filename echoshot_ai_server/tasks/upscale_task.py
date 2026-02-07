@@ -1,10 +1,12 @@
 import cv2
 import numpy as np
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Callable
 import subprocess
 import logging
 from dataclasses import dataclass
+
+from .base import BaseTask
 
 logger = logging.getLogger(__name__)
 
@@ -162,7 +164,8 @@ class OptimizedUpscaleTask:
             output_path: Path,
             scale: int = 2,
             device: str = "cpu",
-            model_profile: str = "balanced"
+            model_profile: str = "balanced",
+            progress_callback: Optional[Callable[[float, str], None]] = None
     ):
         """
         비디오 업스케일 실행
@@ -191,7 +194,8 @@ class OptimizedUpscaleTask:
         # 업스케일 처리
         self._process_video(
             input_path, output_path, upscaler, scale,
-            video_info, temp_audio if has_audio else None
+            video_info, temp_audio if has_audio else None,
+            progress_callback
         )
 
         # 정리
@@ -229,7 +233,8 @@ class OptimizedUpscaleTask:
             upscaler: VideoUpscaler,
             scale: int,
             video_info: Dict,
-            audio_path: Optional[Path]
+            audio_path: Optional[Path],
+            progress_callback: Optional[Callable[[float, str], None]] = None
     ):
         """비디오 처리 (ffmpeg 직접 파이핑)"""
         out_width = video_info["width"] * scale
@@ -270,6 +275,13 @@ class OptimizedUpscaleTask:
                 if frame_count % log_interval == 0:
                     progress = (frame_count / total_frames) * 100
                     logger.info(f"진행률: {progress:.1f}% ({frame_count}/{total_frames})")
+                    
+                    # 진행률 콜백 호출
+                    if progress_callback:
+                        progress_callback(
+                            progress,
+                            f"프레임 처리 중: {frame_count}/{total_frames}"
+                        )
 
         finally:
             cap.release()
@@ -313,26 +325,40 @@ class OptimizedUpscaleTask:
         return cmd
 
 
-# BaseTask 통합용
-class UpscaleTask:
-    """BaseTask 인터페이스 구현"""
-
-    def __init__(self, job, temp_dir: Path):
-        self.job = job
-        self.temp_dir = temp_dir
-        self.input_path = None  # BaseTask에서 설정
-        self.output_path = None
+# BaseTask 통합
+class UpscaleTask(BaseTask):
+    """
+    비디오 업스케일링 Task
+    
+    BaseTask를 상속받아 진행률 보고가 자동으로 처리됩니다.
+    _process() 메서드에서 실제 업스케일 작업을 수행합니다.
+    """
 
     def _process(self) -> Path:
-        """업스케일 실행"""
+        """
+        업스케일 실행
+        
+        BaseTask의 input_path에서 파일을 읽어 업스케일 후 출력 파일 경로 반환
+        """
         scale = self.job.parameters.get("scale_factor", 2)
         device = self.job.parameters.get("device", "cpu")
         profile = self.job.parameters.get("model_profile", "balanced")
 
         output_file = self.temp_dir / f"{self.job.job_id}_upscaled.mp4"
 
+        # 진행률 콜백 (BaseTask의 report_progress 사용)
+        def progress_callback(percentage: float, message: str) -> None:
+            self.report_progress(percentage, message)
+
         task = OptimizedUpscaleTask(self.temp_dir)
-        task.process(self.input_path, output_file, scale, device, profile)
+        task.process(
+            self.input_path, 
+            output_file, 
+            scale, 
+            device, 
+            profile,
+            progress_callback=progress_callback
+        )
 
         return output_file
 
