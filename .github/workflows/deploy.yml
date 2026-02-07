@@ -63,11 +63,7 @@ jobs:
       - name: Install numpy first (pre-built wheel)
         run: |
           python -m pip install --upgrade pip setuptools wheel
-<<<<<<< HEAD
-          python -m pip install --no-cache-dir --no-build-isolation "numpy>=1.21.2,<1.26"
-=======
           python -m pip install --no-cache-dir --only-binary numpy "numpy>=1.26,<2.0"
->>>>>>> 387699dd73812b1b137243ab8ef70c4f62e36dca
 
       - name: Install dependencies
         run: |
