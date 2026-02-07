@@ -142,7 +142,8 @@ class SQSClient:
                 QueueUrl=self.queue_url,
                 MaxNumberOfMessages=max_messages,
                 VisibilityTimeout=visibility_timeout,
-                WaitTimeSeconds=20  # Long polling
+                WaitTimeSeconds=20,  # Long polling
+                AttributeNames=['ApproximateReceiveCount']  # 재시도 횟수 확인용
             )
 
             messages = response.get('Messages', [])
@@ -157,10 +158,17 @@ class SQSClient:
 
             for msg in messages:
                 try:
+                    # 재시도 횟수 확인 (3번 이상이면 스킵)
+                    receive_count = int(msg.get('Attributes', {}).get('ApproximateReceiveCount', 1))
+                    if receive_count > 3:
+                        logger.warning(f"Message received {receive_count} times (>3), deleting without processing: message_id={msg.get('MessageId', 'unknown')}")
+                        self.delete_message(msg['ReceiptHandle'])
+                        continue
+                    
                     body = json.loads(msg['Body'])
                     
                     # 메시지 형식 미리 확인
-                    logger.debug(f"Raw SQS message body keys: {list(body.keys())}")
+                    logger.debug(f"Raw SQS message body keys: {list(body.keys())} (receive_count={receive_count})")
                     if "jobId" in body:
                         logger.debug(f"Detected Spring format message with fields: jobId={body.get('jobId')}, memberId={body.get('memberId')}, processingType={body.get('processingType')}")
                     
@@ -180,7 +188,8 @@ class SQSClient:
                     jobs.append(job)
                     logger.debug(f"Successfully converted message to Job: {job.job_id} (task_type={job.task_type}, user_id={job.user_id}, s3_key={parsed['source_s3_key']})")
                 except (KeyError, ValueError, json.JSONDecodeError) as e:
-                    logger.error(f"Invalid message format: {e}, message_id={msg.get('MessageId', 'unknown')}, body={str(body)[:500]}...")
+                    raw_body = msg.get('Body', '')[:500]
+                    logger.error(f"Invalid message format: {e}, message_id={msg.get('MessageId', 'unknown')}, body={raw_body}...")
                     # 잘못된 메시지 삭제
                     self.delete_message(msg['ReceiptHandle'])
 
@@ -193,16 +202,18 @@ class SQSClient:
             logger.error(f"Failed to receive messages from SQS: {e}")
             return []
 
-    def delete_message(self, receipt_handle: str) -> None:
+    def delete_message(self, receipt_handle: str) -> bool:
         """메시지 삭제 (처리 완료)"""
         try:
             self.sqs_client.delete_message(
                 QueueUrl=self.queue_url,
                 ReceiptHandle=receipt_handle
             )
-            logger.debug("Message deleted from queue")
+            logger.info("Message deleted from SQS queue successfully")
+            return True
         except ClientError as e:
-            logger.error(f"Failed to delete message: {e}")
+            logger.error(f"Failed to delete message from SQS: {e}")
+            return False
 
     def change_visibility(self, receipt_handle: str, timeout: int) -> None:
         """메시지 가시성 타임아웃 변경"""

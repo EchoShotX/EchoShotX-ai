@@ -124,8 +124,8 @@ class ProgressReporter:
             if success:
                 self._last_progress = progress
                 self._last_status = status
-                logger.debug(
-                    f"Progress published: job={self.job_id}, "
+                logger.info(
+                    f"Progress published: job={self.job_id}, video={self.video_id}, "
                     f"progress={progress:.1f}%, status={status.value}"
                 )
             else:

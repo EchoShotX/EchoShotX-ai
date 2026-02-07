@@ -92,15 +92,14 @@ class WorkerPool:
                 # Job 처리
                 result = self.job_processor.process_job(job)
 
-                # 성공 시 SQS 메시지 삭제
+                # SQS 메시지 삭제 (성공/실패 관계없이 항상 삭제)
+                # 재시도는 SQS의 ApproximateReceiveCount로 관리됨
+                deleted = self.sqs_client.delete_message(job.receipt_handle)
+                
                 if result.status == JobStatus.COMPLETED:
-                    self.sqs_client.delete_message(job.receipt_handle)
-                    logger.info(f"Job {job.job_id} completed successfully, message deleted from SQS")
+                    logger.info(f"Job {job.job_id} completed successfully, SQS message deleted={deleted}")
                 else:
-                    # 실패 시: 항상 SQS 메시지 삭제 (재시도 하지 않음)
-                    # SQS 재시도는 DLQ(Dead Letter Queue) 설정으로 처리해야 함
-                    self.sqs_client.delete_message(job.receipt_handle)
-                    logger.warning(f"Job {job.job_id} failed, message deleted from SQS (no retry - use DLQ for retry)")
+                    logger.warning(f"Job {job.job_id} failed, SQS message deleted={deleted}")
 
             except Empty:
                 continue
