@@ -7,12 +7,19 @@ Redis 클라이언트 모듈
 
 import json
 import logging
+import time
 from datetime import datetime
 from typing import Optional, Dict, Any
 from contextlib import contextmanager
 
-import redis
-from redis.exceptions import RedisError, ConnectionError, TimeoutError
+try:
+    import redis
+    from redis.exceptions import RedisError, ConnectionError, TimeoutError
+except ImportError:
+    redis = None
+    RedisError = Exception
+    ConnectionError = Exception
+    TimeoutError = Exception
 
 from ..config.settings import settings
 
@@ -76,29 +83,35 @@ class RedisClient:
             연결 성공 여부
         """
         try:
-            self._client = redis.Redis(
-                host=self.host,
-                port=self.port,
-                password=self.password,
-                db=self.db,
-                socket_timeout=self.socket_timeout,
-                socket_connect_timeout=self.socket_timeout,
-                retry_on_timeout=self.retry_on_timeout,
-                decode_responses=True,  # 문자열로 디코딩
-                health_check_interval=30  # 30초마다 헬스체크
-            )
-            
-            # 연결 테스트 (PING)
-            self._client.ping()
-            self._connected = True
-            logger.info(f"Successfully connected to Redis at {self.host}:{self.port}")
-            return True
+            if redis is not None:
+                self._client = redis.Redis(
+                    host=self.host,
+                    port=self.port,
+                    password=self.password,
+                    db=self.db,
+                    socket_timeout=self.socket_timeout,
+                    socket_connect_timeout=self.socket_timeout,
+                    retry_on_timeout=self.retry_on_timeout,
+                    decode_responses=True,  # 문자열로 디코딩
+                    health_check_interval=30  # 30초마다 헬스체크
+                )
+                
+                # 연결 테스트 (PING)
+                self._client.ping()
+                self._connected = True
+                logger.info(f"Successfully connected to Redis at {self.host}:{self.port}")
+                return True
+            else:
+                logger.warning("Redis not available, using fallback mode")
+                self._client = None
+                self._connected = False
+                return False
             
         except (ConnectionError, TimeoutError) as e:
             logger.warning(f"Failed to connect to Redis at {self.host}:{self.port}: {e}")
             self._connected = False
             return False
-        except RedisError as e:
+        except Exception as e:
             logger.error(f"Redis error during connection: {e}")
             self._connected = False
             return False
@@ -120,6 +133,60 @@ class RedisClient:
         except (RedisError, ConnectionError, TimeoutError):
             self._connected = False
             return False
+    
+    def ensure_connection(self) -> bool:
+        """
+        Redis 연결 보장 (재연결 시도)
+        
+        Returns:
+            연결 성공 여부
+        """
+        if self.is_connected():
+            return True
+        
+        logger.info("Redis connection lost, attempting to reconnect...")
+        return self._connect()
+    
+    def publish_with_retry(
+        self,
+        channel: str,
+        message: Dict[str, Any],
+        max_retries: int = 3
+    ) -> bool:
+        """
+        재시도 로직이 포함된 메시지 발행
+        
+        Args:
+            channel: 발행할 채널
+            message: 발행할 메시지
+            max_retries: 최대 재시도 횟수
+            
+        Returns:
+            발행 성공 여부
+        """
+        for attempt in range(max_retries):
+            try:
+                if self.ensure_connection():
+                    if self.client is not None:
+                        success = self.publish(channel, message)
+                        if success:
+                            return True
+                        logger.debug(f"Publish successful on attempt {attempt + 1}")
+                    else:
+                        logger.warning("Redis client not available, skipping publish")
+                        return False
+                else:
+                    logger.warning("Redis not available, skipping publish")
+                    return False
+            except Exception as e:
+                logger.warning(f"Publish attempt {attempt + 1} failed: {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(1)  # 1초 대기 후 재시도
+                else:
+                    logger.error(f"Publish failed after {max_retries} attempts: {e}")
+                    return False
+        
+        return False
     
     def publish(self, channel: str, message: Dict[str, Any]) -> bool:
         """
@@ -146,9 +213,10 @@ class RedisClient:
             )
             return True
             
-        except (RedisError, ConnectionError, TimeoutError) as e:
+        except Exception as e:
             logger.warning(f"Failed to publish to channel '{channel}': {e}")
-            self._connected = False
+            if isinstance(e, (RedisError, ConnectionError, TimeoutError)):
+                self._connected = False
             return False
     
     def publish_progress(
@@ -181,7 +249,7 @@ class RedisClient:
         channel = f"job:{job_id}:progress"
         
         payload = {
-            "jobId": job_id,  # Spring과 일관성 유지 (camelCase)
+            "jobId": job_id,  # Spring과 호환성 유지 (camelCase)
             "progress": min(100.0, max(0.0, progress)),
             "status": status,
             "timestamp": datetime.utcnow().isoformat() + "Z"
@@ -201,7 +269,12 @@ class RedisClient:
         if metadata:
             payload["metadata"] = metadata
         
-        return self.publish(channel, payload)
+        # Redis fallback 로직
+        if self.client is not None:
+            return self.publish(channel, payload)
+        else:
+            logger.warning(f"Redis not available, skipping progress publish for job {job_id}")
+            return False
     
     def close(self) -> None:
         """Redis 연결 종료"""
