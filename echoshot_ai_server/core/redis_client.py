@@ -151,7 +151,7 @@ class RedisClient:
         self,
         channel: str,
         message: Dict[str, Any],
-        max_retries: int = 3
+        max_retries: int = 2
     ) -> bool:
         """
         재시도 로직이 포함된 메시지 발행
@@ -159,33 +159,31 @@ class RedisClient:
         Args:
             channel: 발행할 채널
             message: 발행할 메시지
-            max_retries: 최대 재시도 횟수
+            max_retries: 최대 재시도 횟수 (기본값 2로 줄임)
             
         Returns:
             발행 성공 여부
         """
         for attempt in range(max_retries):
             try:
-                if self.ensure_connection():
-                    if self.client is not None:
-                        success = self.publish(channel, message)
-                        if success:
-                            return True
-                        logger.debug(f"Publish successful on attempt {attempt + 1}")
-                    else:
-                        logger.warning("Redis client not available, skipping publish")
-                        return False
+                # 연결 상태 확인 (reconnect 시도)
+                if self.ensure_connection() and self.client is not None:
+                    success = self.publish(channel, message)
+                    if success:
+                        return True
+                    logger.debug(f"Publish successful on attempt {attempt + 1}")
                 else:
-                    logger.warning("Redis not available, skipping publish")
-                    return False
+                    logger.debug(f"Redis connection unavailable on attempt {attempt + 1}")
+                    # 첫 시도 실패 시 바로 실패 반환 (빠른 fallback)
+                    break
             except Exception as e:
-                logger.warning(f"Publish attempt {attempt + 1} failed: {e}")
+                logger.debug(f"Publish attempt {attempt + 1} failed: {e}")
                 if attempt < max_retries - 1:
-                    time.sleep(1)  # 1초 대기 후 재시도
+                    time.sleep(0.5)  # 0.5초 대기 후 재시도
                 else:
-                    logger.error(f"Publish failed after {max_retries} attempts: {e}")
-                    return False
+                    logger.debug(f"Redis publish failed after {max_retries} attempts: {e}")
         
+        # Redis 연결이 안되어도 실패로 처리하지 않고 계속 진행
         return False
     
     def publish(self, channel: str, message: Dict[str, Any]) -> bool:

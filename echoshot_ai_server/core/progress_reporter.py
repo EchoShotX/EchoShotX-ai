@@ -106,9 +106,11 @@ class ProgressReporter:
         
         client = self.redis_client
         if not client:
+            logger.debug(f"Redis not available for job {self.job_id}, skipping progress update")
             return False
         
         try:
+            # Redis의 publish_progress 사용 (타임스탬프 자동 추가)
             success = client.publish_progress(
                 job_id=self.job_id,
                 progress=progress,
@@ -126,11 +128,13 @@ class ProgressReporter:
                     f"Progress published: job={self.job_id}, "
                     f"progress={progress:.1f}%, status={status.value}"
                 )
+            else:
+                logger.debug(f"Redis publish failed for job {self.job_id}, but continuing")
             
             return success
             
         except Exception as e:
-            logger.warning(f"Failed to publish progress for job {self.job_id}: {e}")
+            logger.debug(f"Redis publish error for job {self.job_id}: {e} (continuing without Redis)")
             return False
     
     def start(self, message: str = "작업을 시작합니다") -> bool:

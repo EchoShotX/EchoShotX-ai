@@ -17,6 +17,9 @@ class S3Client:
     def download_file(self, s3_key: str, local_path: Path) -> None:
         """S3에서 파일 다운로드"""
         try:
+            # 먼저 파일이 존재하는지 확인
+            self.s3_client.head_object(Bucket=self.bucket_name, Key=s3_key)
+            
             local_path.parent.mkdir(parents=True, exist_ok=True)
             self.s3_client.download_file(
                 self.bucket_name,
@@ -25,8 +28,13 @@ class S3Client:
             )
             logger.info(f"Downloaded s3://{self.bucket_name}/{s3_key}")
         except ClientError as e:
-            logger.error(f"Failed to download {s3_key}: {e}")
-            raise
+            error_code = e.response['Error']['Code']
+            if error_code == '404':
+                logger.error(f"S3 file not found: s3://{self.bucket_name}/{s3_key}")
+                raise FileNotFoundError(f"S3 file not found: {s3_key}")
+            else:
+                logger.error(f"Failed to download {s3_key}: {e}")
+                raise
 
     def upload_file(self, local_path: Path, s3_key: str) -> None:
         """S3로 파일 업로드"""

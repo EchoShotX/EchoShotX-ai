@@ -178,7 +178,7 @@ class SQSClient:
                         metadata=parsed.get('metadata')
                     )
                     jobs.append(job)
-                    logger.debug(f"Successfully converted message to Job: {job.job_id} (task_type={job.task_type}, user_id={job.user_id})")
+                    logger.debug(f"Successfully converted message to Job: {job.job_id} (task_type={job.task_type}, user_id={job.user_id}, s3_key={parsed['source_s3_key']})")
                 except (KeyError, ValueError, json.JSONDecodeError) as e:
                     logger.error(f"Invalid message format: {e}, message_id={msg.get('MessageId', 'unknown')}, body={str(body)[:500]}...")
                     # 잘못된 메시지 삭제

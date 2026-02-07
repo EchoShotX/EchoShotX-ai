@@ -111,9 +111,20 @@ class BaseTask(ABC):
     def _download_input(self) -> Path:
         """S3에서 입력 파일 다운로드"""
         input_file = self.temp_dir / f"{self.job.job_id}_input.mp4"
-        self.s3_client.download_file(self.job.source_s3_key, input_file)
-        logger.info(f"Downloaded input file: {input_file}")
-        return input_file
+        try:
+            self.s3_client.download_file(self.job.source_s3_key, input_file)
+            logger.info(f"Downloaded input file: {input_file}")
+            return input_file
+        except FileNotFoundError as e:
+            # S3 파일이 존재하지 않는 경우, 더 명확한 에러 메시지로 처리
+            error_msg = f"입력 파일을 찾을 수 없습니다: {self.job.source_s3_key}. 파일이 삭제되었거나 아직 업로드되지 않았을 수 있습니다."
+            logger.error(f"Job {self.job.job_id}: {error_msg}")
+            raise FileNotFoundError(error_msg) from e
+        except Exception as e:
+            # 기타 S3 다운로드 에러
+            error_msg = f"입력 파일 다운로드 중 오류 발생: {str(e)}"
+            logger.error(f"Job {self.job.job_id}: {error_msg}")
+            raise Exception(error_msg) from e
 
     def _upload_output(self) -> str:
         """S3로 결과 파일 업로드"""
