@@ -87,16 +87,18 @@ class ProgressReporter:
         progress: float,
         status: ProgressStatus,
         message: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        task_progress: Optional[float] = None
     ) -> bool:
         """
         진행률을 Redis에 발행
         
         Args:
-            progress: 진행률 (0-100)
+            progress: 전체 진행률 (0-100)
             status: 작업 상태
             message: 추가 메시지
             metadata: 추가 메타데이터
+            task_progress: 개별 태스크 진행률 (로깅용)
             
         Returns:
             발행 성공 여부
@@ -124,10 +126,13 @@ class ProgressReporter:
             if success:
                 self._last_progress = progress
                 self._last_status = status
-                logger.info(
-                    f"Progress published: job={self.job_id}, video={self.video_id}, "
-                    f"progress={progress:.1f}%, status={status.value}"
-                )
+                
+                log_msg = f"Progress published: job={self.job_id}, video={self.video_id}, total={progress:.1f}%"
+                if task_progress is not None:
+                    log_msg += f" (task={task_progress:.1f}%)"
+                log_msg += f", status={status.value}"
+                
+                logger.info(log_msg)
             else:
                 logger.debug(f"Redis publish failed for job {self.job_id}, but continuing")
             
@@ -195,7 +200,8 @@ class ProgressReporter:
             progress=adjusted_progress,
             status=ProgressStatus.PROCESSING,
             message=message,
-            metadata=metadata
+            metadata=metadata,
+            task_progress=progress
         )
     
     def uploading(self, message: str = "결과 업로드 중") -> bool:

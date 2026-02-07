@@ -274,7 +274,7 @@ class OptimizedUpscaleTask:
                 frame_count += 1
                 if frame_count % log_interval == 0:
                     progress = (frame_count / total_frames) * 100
-                    logger.info(f"진행률: {progress:.1f}% ({frame_count}/{total_frames})")
+                    logger.info(f"[Internal Task] Upscaling: {progress:.1f}% ({frame_count}/{total_frames})")
                     
                     # 진행률 콜백 호출
                     if progress_callback:
