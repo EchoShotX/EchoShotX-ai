@@ -9,8 +9,10 @@ from abc import ABC, abstractmethod
 from typing import Optional, Callable
 from ..domain.job import *
 from ..core.progress_reporter import ProgressReporter
+from ..core.sqs_client import SQSClient
 from pathlib import Path
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +53,10 @@ class BaseTask(ABC):
             video_id=video_id,
             redis_client=redis_client
         )
+        
+        # SQS Heartbeat 초기화
+        self.sqs_client = SQSClient()
+        self.last_heartbeat = time.time()
 
     def execute(self) -> TaskResult:
         """Template Method Pattern으로 실행 흐름 정의"""
@@ -165,6 +171,17 @@ class BaseTask(ABC):
         Returns:
             보고 성공 여부
         """
+        # SQS Heartbeat: 60초마다 가시성 타임아웃 300초(5분) 연장
+        current_time = time.time()
+        if self.job.receipt_handle and (current_time - self.last_heartbeat > 60):
+            try:
+                # 5분 연장
+                self.sqs_client.change_visibility(self.job.receipt_handle, timeout=300)
+                self.last_heartbeat = current_time
+                logger.info(f"Extended SQS visibility timeout for job {self.job.job_id} (heartbeat)")
+            except Exception as e:
+                logger.warning(f"Failed to extend SQS visibility timeout: {e}")
+                
         return self.progress.update(percentage, message)
 
     @abstractmethod
