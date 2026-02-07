@@ -16,6 +16,9 @@ loguru==0.7.2
 # Config
 pydantic-settings==2.2.1
 
+# Redis (진행률 Pub/Sub용)
+redis==5.0.1
+
 # Type hints
 typing-extensions==4.12.2
 
