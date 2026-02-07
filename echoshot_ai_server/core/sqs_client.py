@@ -133,6 +133,20 @@ class SQSClient:
         self.queue_url = settings.SQS_QUEUE_URL
         self.sqs_client = boto3.client('sqs', region_name=settings.AWS_REGION)
 
+    def send_message(self, message_body: Dict[str, Any], delay_seconds: int = 0) -> bool:
+        """메시지 전송 (재시도용)"""
+        try:
+            self.sqs_client.send_message(
+                QueueUrl=self.queue_url,
+                MessageBody=json.dumps(message_body),
+                DelaySeconds=delay_seconds
+            )
+            logger.info(f"Message sent to SQS queue (retry): job_id={message_body.get('job_id') or message_body.get('jobId')}")
+            return True
+        except ClientError as e:
+            logger.error(f"Failed to send message to SQS: {e}")
+            return False
+
     def receive_messages(self, max_messages: int = 1,
                          visibility_timeout: int = 300) -> List[Job]:
         """SQS 메시지 수신 및 Job 객체로 변환"""
@@ -176,6 +190,11 @@ class SQSClient:
                     parsed = parse_sqs_message_body(body)
                     
                     # Job 객체 생성
+                    # 재시도 횟수: SQS 속성 또는 메시지 본문의 customRetryCount 사용
+                    sqs_retry_count = receive_count - 1 # receive_count는 1부터 시작
+                    custom_retry_count = body.get('customRetryCount', 0)
+                    final_retry_count = max(sqs_retry_count, custom_retry_count)
+
                     job = Job(
                         job_id=parsed['job_id'],
                         user_id=parsed['user_id'],
@@ -183,7 +202,8 @@ class SQSClient:
                         source_s3_key=parsed['source_s3_key'],
                         parameters=parsed['parameters'],
                         receipt_handle=msg['ReceiptHandle'],
-                        metadata=parsed.get('metadata')
+                        metadata=parsed.get('metadata'),
+                        retry_count=final_retry_count
                     )
                     jobs.append(job)
                     logger.debug(f"Successfully converted message to Job: {job.job_id} (task_type={job.task_type}, user_id={job.user_id}, s3_key={parsed['source_s3_key']})")

@@ -251,7 +251,7 @@ class OptimizedUpscaleTask:
             ffmpeg_cmd,
             stdin=subprocess.PIPE,
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE
+            stderr=subprocess.DEVNULL  # 블로킹 방지를 위해 DEVNULL 사용
         )
 
         # 프레임 처리
@@ -289,8 +289,8 @@ class OptimizedUpscaleTask:
             ffmpeg_proc.wait()
 
             if ffmpeg_proc.returncode != 0:
-                stderr = ffmpeg_proc.stderr.read().decode()
-                raise RuntimeError(f"ffmpeg 오류: {stderr}")
+                # stderr를 DEVNULL로 보냈으므로 상세 에러 메시지는 확인 불가
+                raise RuntimeError(f"ffmpeg 오류 발생 (return code: {ffmpeg_proc.returncode})")
 
     def _build_ffmpeg_cmd(
             self,

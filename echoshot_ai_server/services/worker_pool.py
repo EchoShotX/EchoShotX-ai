@@ -89,17 +89,28 @@ class WorkerPool:
 
                 logger.info(f"Worker {worker_id} processing job {job.job_id}")
 
-                # Job 처리
+                # 1. 즉시 삭제 (At-most-once delivery 보장, 중복 실행 방지)
+                self.sqs_client.delete_message(job.receipt_handle)
+                logger.info(f"Job {job.job_id} message deleted from SQS immediately to prevent duplicate processing")
+
+                # 2. Job 처리
                 result = self.job_processor.process_job(job)
 
-                # SQS 메시지 삭제 (성공/실패 관계없이 항상 삭제)
-                # 재시도는 SQS의 ApproximateReceiveCount로 관리됨
-                deleted = self.sqs_client.delete_message(job.receipt_handle)
+                # 3. 실패 시 재시도 처리 (Application-level retry)
+                if result.status != JobStatus.COMPLETED:
+                    if job.retry_count < self.job_processor.max_retries:
+                        # 재시도 횟수 증가하여 새 메시지 발행
+                        retry_payload = job.to_dict()
+                        retry_payload['customRetryCount'] = job.retry_count + 1
+                        
+                        logger.warning(f"Job {job.job_id} failed. Re-queueing for retry ({retry_payload['customRetryCount']}/{self.job_processor.max_retries})")
+                        self.sqs_client.send_message(retry_payload, delay_seconds=60) # 60초 딜레이
+                    else:
+                        logger.error(f"Job {job.job_id} exceeded max retries ({job.retry_count}). Dropping message.")
                 
+                # 성공 시에는 이미 삭제했으므로 추가 동작 없음
                 if result.status == JobStatus.COMPLETED:
-                    logger.info(f"Job {job.job_id} completed successfully, SQS message deleted={deleted}")
-                else:
-                    logger.warning(f"Job {job.job_id} failed, SQS message deleted={deleted}")
+                    logger.info(f"Job {job.job_id} completed successfully")
 
             except Empty:
                 continue
