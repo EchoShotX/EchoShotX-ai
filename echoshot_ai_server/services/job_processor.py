@@ -61,6 +61,7 @@ class JobProcessor:
         """Job 처리 메인 로직"""
         logger.info(f"Processing job {job.job_id}")
 
+        result = None
         try:
             # 1. Task 생성 (Redis 클라이언트 전달)
             task = TaskFactory.create_task(
@@ -73,11 +74,6 @@ class JobProcessor:
             # 2. Task 실행
             result = task.execute()
 
-            # 3. 콜백 전송
-            self._send_callback_with_retry(result, job)
-
-            return result
-
         except Exception as e:
             logger.error(f"Job {job.job_id} processing failed: {e}", exc_info=True)
 
@@ -88,13 +84,14 @@ class JobProcessor:
                 error_message=str(e)
             )
 
-            # 실패 콜백 전송 시도
-            try:
-                self._send_callback_with_retry(result, job)
-            except Exception as callback_error:
-                logger.error(f"Failed to send failure callback: {callback_error}")
+        # 3. 콜백 전송 (성공/실패 관계없이 한 번만 시도)
+        try:
+            self._send_callback_with_retry(result, job)
+        except Exception as callback_error:
+            # 콜백 실패는 로깅만 하고 재시도하지 않음 (무한 재시도 방지)
+            logger.error(f"Failed to send callback for job {job.job_id} after {self.max_retries} retries: {callback_error}")
 
-            return result
+        return result
 
     def _send_callback_with_retry(self, result: TaskResult, job: Job) -> None:
         """재시도 로직이 포함된 콜백 전송"""

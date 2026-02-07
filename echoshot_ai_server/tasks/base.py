@@ -110,6 +110,15 @@ class BaseTask(ABC):
 
     def _download_input(self) -> Path:
         """S3에서 입력 파일 다운로드"""
+        import os
+        
+        # 디렉토리 존재 및 권한 확인
+        self.temp_dir.mkdir(parents=True, exist_ok=True)
+        if not os.access(self.temp_dir, os.W_OK):
+            error_msg = f"임시 디렉토리에 쓰기 권한이 없습니다: {self.temp_dir}"
+            logger.error(f"Job {self.job.job_id}: {error_msg}")
+            raise PermissionError(error_msg)
+        
         input_file = self.temp_dir / f"{self.job.job_id}_input.mp4"
         try:
             self.s3_client.download_file(self.job.source_s3_key, input_file)
@@ -120,6 +129,11 @@ class BaseTask(ABC):
             error_msg = f"입력 파일을 찾을 수 없습니다: {self.job.source_s3_key}. 파일이 삭제되었거나 아직 업로드되지 않았을 수 있습니다."
             logger.error(f"Job {self.job.job_id}: {error_msg}")
             raise FileNotFoundError(error_msg) from e
+        except PermissionError as e:
+            # 권한 오류를 별도로 처리
+            error_msg = f"파일 다운로드 권한 오류: {str(e)}. 컨테이너 권한을 확인하세요."
+            logger.error(f"Job {self.job.job_id}: {error_msg}")
+            raise PermissionError(error_msg) from e
         except Exception as e:
             # 기타 S3 다운로드 에러
             error_msg = f"입력 파일 다운로드 중 오류 발생: {str(e)}"
