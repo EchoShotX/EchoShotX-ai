@@ -14,7 +14,8 @@ services:
     env_file:
       - .env.prod
     volumes:
-      - /tmp/video_processing:/tmp/video_processing
+      # 호스트 디렉토리를 마운트하지 않고 Docker volume 사용 (권한 문제 해결)
+      - video_processing:/tmp/video_processing
       - ./logs:/app/logs
     networks:
       - echoshot-network
@@ -35,4 +36,8 @@ services:
 networks:
   echoshot-network:
     driver: bridge
+
+# Docker 관리 볼륨 사용 (권한 문제 해결)
+volumes:
+  video_processing:
 

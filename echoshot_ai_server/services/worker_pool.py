@@ -95,18 +95,12 @@ class WorkerPool:
                 # 성공 시 SQS 메시지 삭제
                 if result.status == JobStatus.COMPLETED:
                     self.sqs_client.delete_message(job.receipt_handle)
+                    logger.info(f"Job {job.job_id} completed successfully, message deleted from SQS")
                 else:
-                    # 실패 시 재시도 로직
-                    if job.retry_count < self.job_processor.max_retries:
-                        # 가시성 타임아웃 연장 (재시도)
-                        self.sqs_client.change_visibility(
-                            job.receipt_handle,
-                            timeout=60
-                        )
-                    else:
-                        # 최대 재시도 초과 시 삭제
-                        self.sqs_client.delete_message(job.receipt_handle)
-                        logger.error(f"Job {job.job_id} exceeded max retries")
+                    # 실패 시: 항상 SQS 메시지 삭제 (재시도 하지 않음)
+                    # SQS 재시도는 DLQ(Dead Letter Queue) 설정으로 처리해야 함
+                    self.sqs_client.delete_message(job.receipt_handle)
+                    logger.warning(f"Job {job.job_id} failed, message deleted from SQS (no retry - use DLQ for retry)")
 
             except Empty:
                 continue

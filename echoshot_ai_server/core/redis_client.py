@@ -60,17 +60,22 @@ class RedisClient:
         self.port = port or settings.REDIS_PORT
         self.password = password or settings.REDIS_PASSWORD or None  # 빈 문자열 -> None
         self.db = db if db is not None else settings.REDIS_DB
-        self.socket_timeout = socket_timeout or settings.REDIS_SOCKET_TIMEOUT
-        self.retry_on_timeout = retry_on_timeout if retry_on_timeout is not None else settings.REDIS_RETRY_ON_TIMEOUT
+        # 타임아웃을 2초로 줄여서 빠른 fallback 가능
+        self.socket_timeout = socket_timeout or min(settings.REDIS_SOCKET_TIMEOUT, 2.0)
+        self.retry_on_timeout = False  # 타임아웃 시 재시도하지 않음 (빠른 fallback)
         
         self._client: Optional[redis.Redis] = None
         self._connected: bool = False
+        self._connection_failed: bool = False  # 연결 실패 시 더 이상 시도하지 않음
         
         logger.info(f"Redis client initialized for {self.host}:{self.port} (db={self.db})")
     
     @property
     def client(self) -> Optional[redis.Redis]:
         """Redis 클라이언트 인스턴스 (lazy initialization)"""
+        # 이전에 연결 실패한 경우 더 이상 시도하지 않음
+        if self._connection_failed:
+            return None
         if self._client is None:
             self._connect()
         return self._client
@@ -110,10 +115,12 @@ class RedisClient:
         except (ConnectionError, TimeoutError) as e:
             logger.warning(f"Failed to connect to Redis at {self.host}:{self.port}: {e}")
             self._connected = False
+            self._connection_failed = True  # 다시 시도하지 않음
             return False
         except Exception as e:
             logger.error(f"Redis error during connection: {e}")
             self._connected = False
+            self._connection_failed = True  # 다시 시도하지 않음
             return False
     
     def is_connected(self) -> bool:
